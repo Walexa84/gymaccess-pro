@@ -40,6 +40,7 @@ export const HorariosTab: React.FC<HorariosTabProps> = ({
   const [nuevoNivel, setNuevoNivel] = useState({
     nombre: '',
     descripcion: '',
+    cloud_level_id: '',
     area_id: '',
     horario_id: ''
   });
@@ -82,6 +83,7 @@ export const HorariosTab: React.FC<HorariosTabProps> = ({
     const payload = {
       nombre: nuevoNivel.nombre,
       descripcion: nuevoNivel.descripcion,
+      cloud_level_id: nuevoNivel.cloud_level_id || null,
       areas: nuevoNivel.area_id
         ? [{ area_id: Number(nuevoNivel.area_id), horario_id: nuevoNivel.horario_id ? Number(nuevoNivel.horario_id) : null }]
         : []
@@ -91,7 +93,7 @@ export const HorariosTab: React.FC<HorariosTabProps> = ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    setNuevoNivel({ nombre: '', descripcion: '', area_id: '', horario_id: '' });
+    setNuevoNivel({ nombre: '', descripcion: '', cloud_level_id: '', area_id: '', horario_id: '' });
     fetch('/api/topology/niveles').then(r => r.json()).then(setNiveles);
   };
 
@@ -226,6 +228,18 @@ export const HorariosTab: React.FC<HorariosTabProps> = ({
               </select>
             </div>
           </div>
+          <div>
+            <label className="text-xs font-bold text-muted-theme flex items-center justify-between">
+              <span>Vincular con Grupo Teams (Opcional)</span>
+              <span className="text-[10px] text-accent-theme">Para terminales Cloud</span>
+            </label>
+            <input
+              placeholder="ID de nivel/grupo Teams (ej. 1, 2) o vacío para local"
+              value={nuevoNivel.cloud_level_id}
+              onChange={e => setNuevoNivel({ ...nuevoNivel, cloud_level_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1 font-mono text-xs"
+            />
+          </div>
           <button
             type="submit"
             className={`w-full py-2 rounded-xl text-xs font-bold shadow-md ${isCyber ? 'bg-volt text-black' : 'bg-sport-orange text-white'}`}
@@ -296,7 +310,18 @@ export const HorariosTab: React.FC<HorariosTabProps> = ({
             niveles.map(n => (
               <div key={n.id} className="p-4 flex items-center justify-between hover:bg-slate-700/10 transition">
                 <div>
-                  <span className="font-bold text-sm text-main-theme">{n.nombre}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-main-theme">{n.nombre}</span>
+                    {n.cloud_level_id ? (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                        ☁️ Teams ID: {n.cloud_level_id}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                        🔌 Local ISAPI
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-theme mt-0.5">{n.descripcion || 'Regla de acceso combinada'}</p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {n.areas?.map((a: any, i: number) => (

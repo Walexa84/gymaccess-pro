@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS areas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre TEXT NOT NULL,
   descripcion TEXT,
+  cloud_area_id TEXT,
   activo INTEGER DEFAULT 1
 );
 
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS terminales (
   direccion TEXT CHECK(direccion IN ('ENTRADA', 'SALIDA', 'BIDIRECCIONAL')) DEFAULT 'ENTRADA',
   tipo_driver TEXT DEFAULT 'HIKVISION_LOCAL_ISAPI',
   cloud_device_serial TEXT,
+  origen TEXT DEFAULT 'LOCAL',
   activa INTEGER DEFAULT 1,
   creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
 );

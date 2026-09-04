@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Clock, RefreshCw, Globe, Network, Building2, TestTube2, Save
+  Clock, RefreshCw, Globe, Network, Building2, TestTube2, Save, DownloadCloud, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -32,6 +32,8 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
 
   const [testResult, setTestResult] = useState<any | null>(null);
   const [testing, setTesting] = useState(false);
+  const [syncingTeams, setSyncingTeams] = useState(false);
+  const [teamsSyncMsg, setTeamsSyncMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const handleTestConnection = async () => {
     try {
@@ -46,6 +48,20 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
       setTestResult(data);
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleSyncTeams = async () => {
+    try {
+      setSyncingTeams(true);
+      setTeamsSyncMsg(null);
+      const res = await fetch('/api/hardware/teams/sync-resources', { method: 'POST' });
+      const data = await res.json();
+      setTeamsSyncMsg({ text: data.message, ok: data.success });
+    } catch (err: any) {
+      setTeamsSyncMsg({ text: `Error: ${err.message}`, ok: false });
+    } finally {
+      setSyncingTeams(false);
     }
   };
 
@@ -118,16 +134,16 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
         </div>
       </div>
 
-      {/* Selector de Modo de Integración */}
+      {/* Selector de Modo de Integración Primario */}
       <div className="bg-card-theme border border-theme card-shadow-theme rounded-2xl p-6 space-y-4">
-        <h3 className="text-sm font-bold text-muted-theme uppercase tracking-wider">Modo de Operación</h3>
+        <h3 className="text-sm font-bold text-muted-theme uppercase tracking-wider">Modo Predeterminado de la Sucursal</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           <div onClick={() => setConfig({ ...config, hardware_mode: 'HIKCONNECT_TEAMS' })} className={`cursor-pointer p-4 rounded-xl border transition ${config.hardware_mode === 'HIKCONNECT_TEAMS' ? (isCyber ? 'border-volt bg-volt/5' : 'border-sport-orange bg-sport-orange/5') : 'border-theme bg-theme-subtle'}`}>
             <div className="flex items-center gap-3">
               <Globe className="w-5 h-5 text-cyan-400" />
               <div>
                 <span className="font-bold text-sm text-main-theme">Hik-Connect Teams</span>
-                <p className="text-xs text-muted-theme mt-0.5">API Cloud Syscom/Hikvision. Hasta 100 personas gratis.</p>
+                <p className="text-xs text-muted-theme mt-0.5">API Cloud Syscom/Hikvision. Sincronización oficial de recursos.</p>
               </div>
             </div>
           </div>
@@ -137,7 +153,7 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
               <Network className="w-5 h-5 text-emerald-400" />
               <div>
                 <span className="font-bold text-sm text-main-theme">Hikvision Local Directo</span>
-                <p className="text-xs text-muted-theme mt-0.5">ISAPI LAN directo a checador. Sin internet y sin cuotas.</p>
+                <p className="text-xs text-muted-theme mt-0.5">ISAPI LAN directo a checadores. Sin internet y sin cuotas.</p>
               </div>
             </div>
           </div>
@@ -164,12 +180,12 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
         </div>
       </div>
 
-      {/* Formulario de Guardado y Test */}
+      {/* Formulario de Parámetros */}
       <form onSubmit={handleSaveConfig} className="bg-card-theme border border-theme card-shadow-theme rounded-2xl p-6 space-y-4">
         {config.hardware_mode === 'HIKVISION_LOCAL_ISAPI' && (
           <div className="space-y-3">
             <div className="p-3 rounded-xl bg-theme-subtle border border-theme text-xs text-muted-theme">
-              ℹ️ Esta es la conexión del <strong>Checador Principal por Defecto</strong>. Si tu sucursal cuenta con múltiples torniquetes (ej. 2 Entradas y 2 Salidas), regístralos y pruébalos individualmente en la pestaña superior <strong>Áreas & Terminales</strong>.
+              ℹ️ Esta es la conexión del <strong>Checador Principal por Defecto</strong>. Si tu sucursal cuenta con múltiples torniquetes (ej. 2 Entradas y 2 Salidas), puedes gestionarlos individualmente en <strong>Áreas & Terminales</strong>.
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
@@ -189,15 +205,45 @@ export const HardwareTab: React.FC<HardwareTabProps> = ({
         )}
 
         {config.hardware_mode === 'HIKCONNECT_TEAMS' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-muted-theme uppercase mb-1">App Key (AK)</label>
-              <input type="text" value={config.appKey} onChange={e => setConfig({ ...config, appKey: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme" />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-muted-theme uppercase mb-1">App Key (AK)</label>
+                <input type="text" value={config.appKey} onChange={e => setConfig({ ...config, appKey: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-muted-theme uppercase mb-1">Secret Key (SK)</label>
+                <input type="password" value={config.secretKey} onChange={e => setConfig({ ...config, secretKey: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme" />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-muted-theme uppercase mb-1">Secret Key (SK)</label>
-              <input type="password" value={config.secretKey} onChange={e => setConfig({ ...config, secretKey: e.target.value })} className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme" />
+
+            {/* Botón de Sincronización Automática de Recursos desde Teams */}
+            <div className="p-4 rounded-xl bg-theme-subtle border border-theme flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="font-bold text-xs text-main-theme flex items-center gap-1.5">
+                  <DownloadCloud className="w-4 h-4 text-cyan-400" /> Importar Recursos desde Hik-Connect Teams
+                </span>
+                <p className="text-[11px] text-muted-theme mt-0.5">
+                  Consulta la API oficial y descarga tus checadores, áreas y niveles de acceso ya dados de alta en Teams.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncTeams}
+                disabled={syncingTeams}
+                className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition shadow-sm flex items-center gap-1.5 ${isCyber ? 'bg-cyan-500 hover:bg-cyan-400 text-black' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingTeams ? 'animate-spin' : ''}`} />
+                <span>{syncingTeams ? 'Importando...' : 'Sincronizar Recursos Ahora'}</span>
+              </button>
             </div>
+
+            {teamsSyncMsg && (
+              <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${teamsSyncMsg.ok ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                {teamsSyncMsg.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                <span>{teamsSyncMsg.text}</span>
+              </div>
+            )}
           </div>
         )}
 

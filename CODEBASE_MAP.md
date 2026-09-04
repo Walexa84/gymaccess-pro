@@ -54,12 +54,17 @@ Integracion GYMS/
 │       │   └── ThemeContext.tsx # Conmutador reactivo y persistencia de temas (Cyber-Gym / Clean Sport)
 │       ├── components/
 │       │   ├── Navbar.tsx       # Barra superior con segundero en vivo, telemetría de reloj del checador y navegación
-│       │   └── WebcamModal.tsx  # Enrolamiento facial directo con cámara web
+│       │   ├── WebcamModal.tsx  # Enrolamiento facial directo con cámara web
+│       │   └── config/          # Submódulos de Configuración (<500 líneas c/u)
+│       │       ├── HardwareTab.tsx  # Conexión, importación Teams OpenAPI y auditoría de reloj
+│       │       ├── AreasTab.tsx     # Gestión de áreas y terminales híbridas (Local LAN + Teams Cloud)
+│       │       ├── HorariosTab.tsx  # Días de semana, turnos y niveles de acceso con cloud_level_id
+│       │       └── RespaldosTab.tsx # Copias de seguridad atómicas SQLite en caliente
 │       └── pages/
 │           ├── Dashboard.tsx    # Monitor de recepción y KPIs de alto contraste
 │           ├── Socios.tsx       # Directorio de socios con filtros y modal de alta
 │           ├── Cobro.tsx        # Punto de venta y reactivación biométrica
-│           └── Configuracion.tsx# Panel unificado: Hardware/Reloj, Áreas/Terminales, Horarios/Niveles y Respaldos
+│           └── Configuracion.tsx# Panel orquestador de 4 subpestañas modulares
 │
 ├── dist/client/                 # Bundle compilado de producción servido por Express
 ├── CODEBASE_MAP.md              # Mapa vivo de arquitectura y módulos

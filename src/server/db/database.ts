@@ -57,6 +57,10 @@ export function initDatabase() {
   try { db.exec('ALTER TABLE planes ADD COLUMN nivel_acceso_id INTEGER REFERENCES niveles_acceso(id) ON DELETE SET NULL;'); } catch { /* ya existe */ }
   try { db.exec('ALTER TABLE accesos_log ADD COLUMN terminal_id INTEGER REFERENCES terminales(id) ON DELETE SET NULL;'); } catch { /* ya existe */ }
   try { db.exec('ALTER TABLE accesos_log ADD COLUMN terminal_nombre TEXT;'); } catch { /* ya existe */ }
+  try { db.exec('ALTER TABLE areas ADD COLUMN cloud_area_id TEXT;'); } catch { /* ya existe */ }
+  try { db.exec('ALTER TABLE terminales ADD COLUMN origen TEXT DEFAULT "LOCAL";'); } catch { /* ya existe */ }
+  try { db.exec('ALTER TABLE terminales ADD COLUMN cloud_device_serial TEXT;'); } catch { /* ya existe */ }
+  try { db.exec('ALTER TABLE niveles_acceso ADD COLUMN cloud_level_id TEXT;'); } catch { /* ya existe */ }
 
   // Inicializar áreas por defecto si no existen
   const areaCheck = db.prepare('SELECT COUNT(*) as count FROM areas').get() as { count: number };

@@ -102,6 +102,7 @@ Permite seleccionar el driver de comunicación y auditar la sincronización hora
 | Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
 | :--- | :--- | :--- | :--- |
 | **Selector de Driver** | Tarjetas interactivas | Elige el driver activo (Teams / ISAPI / Artemis / Mock) | Adapta los parámetros requeridos dinámicamente |
+| **Importar Recursos desde Teams** | Botón de Acción Cloud | Consulta OpenAPI de Teams (`/devices/get`, `/areas/get`, `/accesslevel/list`) | Importa torniquetes, zonas y grupos de acceso a la base de datos sin captura manual |
 | **Zona Horaria del Gimnasio** | Selector IANA | Zona horaria local (ej. `America/Mexico_City`, `America/Tijuana`, `America/Cancun`) | Fija la referencia temporal para reportes, cobros y sincronización |
 | **Reloj Sistema vs Checador** | Monitor en vivo | Muestra la hora del servidor y la hora leída del checador | Calcula el desfase (drift en segundos) |
 | **Sincronizar Reloj del Checador** | Botón de acción | Envía la hora actual y zona horaria al checador (`/ISAPI/System/time`) | Ajusta el RTC del checador evitando accesos indebidos |
@@ -111,14 +112,19 @@ Permite seleccionar el driver de comunicación y auditar la sincronización hora
 
 ---
 
-#### 🚪 Subpestaña 2: Áreas & Baterías de Terminales
-Permite modelar sucursales con múltiples torniquetes (ej. 2 de Entrada y 2 de Salida) y zonificación interna (General, VIP):
+#### 🚪 Subpestaña 2: Áreas & Baterías de Terminales (Topología Híbrida)
+Permite modelar sucursales con múltiples torniquetes tanto en modo Cloud Teams como en Local ISAPI:
 
 | Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
 | :--- | :--- | :--- | :--- |
-| **Nueva Área** | Botón / Formulario | Nombre del área (ej. *Acceso General*, *Área de Pesas*, *Zona VIP*) | Registra una zona física en la base de datos |
-| **Añadir Terminal** | Botón / Formulario | Nombre, IP de red, Dirección (*Entrada* o *Salida*) y Área | Registra un checador físico en la batería correspondiente |
-| **Lista de Terminales** | Tabla interactiva | Muestra IP, dirección de paso, área asignada y estado | Permite editar o eliminar terminales de la topología |
+| **Nueva Área** | Botón / Formulario | Nombre del área (ej. *Acceso General*, *Área de Pesas*, *Zona VIP*) | Registra una zona física en la base de datos local |
+| **Origen de la Terminal** | Selector (Píldoras) | 🔌 Local LAN (Directo) vs ☁️ Hik-Connect Teams | Conmuta los campos requeridos según la tecnología de conexión |
+| **Serial / Identificador Cloud** | Texto | Número de serie del equipo en Teams | Enlaza la terminal física con la nube de Hik-Connect |
+| **IP / Puerto / Contraseña SADP** | Red LAN | Dirección IP local, puerto HTTP y credencial SADP | Habilita control directo por red local sin internet |
+| **Acción: Probar Handshake** | Botón por fila | Consulta estado y respuesta del checador | Muestra alerta con estatus online / offline del dispositivo |
+| **Acción: Abrir Torniquete** | Botón por fila | Envía pulso de apertura remota | Abre el relevador del checador individual para pruebas |
+| **Acción: Sincronizar Reloj** | Botón por fila | Inyecta fecha/hora local al checador | Corrige el RTC de la terminal individual |
+| **Acción: Eliminar** | Botón por fila | Confirmación de borrado | Desvincula la terminal de la topología del gimnasio |
 
 ---
 
@@ -127,8 +133,9 @@ Permite definir turnos y asociar qué áreas físicas pueden cruzarse y en qué 
 
 | Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
 | :--- | :--- | :--- | :--- |
-| **Nuevo Horario** | Formulario | Nombre (ej. *Total 24/7*, *Matutino*, *Estudiante*), Días de la semana y Rango Horario (06:00 a 14:00) | Define una regla temporal de cruce |
-| **Nuevo Nivel de Acceso** | Formulario | Nombre del nivel, Horario aplicable y selección de Áreas permitidas | Crea el paquete de autorización de paso |
+| **Nuevo Horario** | Formulario | Nombre (ej. *Total 24/7*, *Matutino*, *Estudiante*), Días de la semana (Lun a Dom) y Rango Horario (06:00 a 14:00) | Define una regla temporal de cruce |
+| **Nuevo Nivel de Acceso** | Formulario | Nombre del nivel, Área, Horario y `ID Teams (Opcional)` | Crea la regla de acceso para asociarla a membresías |
+| **Badge Teams / Local** | Indicador visual | Muestra `☁️ Teams ID: X` o `🔌 Local ISAPI` | Identifica qué terminales y plataformas gobiernan la regla |
 | **Vinculación con Planes** | Selector en Planes | Asocia un Nivel de Acceso a cada Plan de Membresía | Al cobrar una membresía, el socio recibe automáticamente este nivel |
 
 ---
@@ -181,3 +188,15 @@ Permite definir turnos y asociar qué áreas físicas pueden cruzarse y en qué 
 3. Verifica que la zona horaria corresponda a la de su ciudad (ej. `America/Mexico_City`).
 4. Presiona el botón azul **Sincronizar Reloj del Checador**.
 5. El sistema inyecta la hora exacta por red al checador. El indicador en la barra superior pasa a verde (`Sincronizado`).
+
+### Flujo 5: Importación Automática desde Hik-Connect Teams y Vinculación Híbrida
+1. Mario ingresa a **Configuración > Hardware & Reloj**.
+2. Verifica que las credenciales de Hik-Connect Teams estén guardadas y válidas.
+3. Presiona el botón verde **`[🔄 Importar Recursos desde Teams]`**.
+4. **Resultado Inmediato:** El sistema contacta el OpenAPI de Teams y descarga en lote:
+   - Todas las terminales registradas en la nube.
+   - Todas las áreas físicas definidas en Teams.
+   - Todos los grupos de acceso (Access Levels) de Teams.
+5. Mario pasa a la pestaña **Horarios & Niveles de Acceso** y comprueba que los grupos importados tienen su insignia `☁️ Teams ID: X`.
+6. En el módulo de cobro o edición de planes, Mario asocia cada plan de membresía (ej. "Membresía Premium") al nivel de acceso correspondiente.
+7. Al cobrar en recepción, el sistema inyecta la vigencia al socio tanto en los grupos de Teams en la nube como en las terminales locales ISAPI de forma transparente.

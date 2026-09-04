@@ -154,13 +154,13 @@ topologyRouter.get('/niveles', (_req: Request, res: Response) => {
 });
 
 topologyRouter.post('/niveles', (req: Request, res: Response) => {
-  const { nombre, descripcion, areas } = req.body; // areas: [{ area_id, horario_id }]
+  const { nombre, descripcion, areas, cloud_level_id } = req.body; // areas: [{ area_id, horario_id }]
   if (!nombre) return res.status(400).json({ error: 'El nombre del nivel es obligatorio' });
 
   try {
     db.exec('BEGIN');
-    const stmt = db.prepare(`INSERT INTO niveles_acceso (nombre, descripcion) VALUES (?, ?)`);
-    const info = stmt.run(nombre, descripcion || null);
+    const stmt = db.prepare(`INSERT INTO niveles_acceso (nombre, descripcion, cloud_level_id) VALUES (?, ?, ?)`);
+    const info = stmt.run(nombre, descripcion || null, cloud_level_id || null);
     const nivelId = info.lastInsertRowid;
 
     if (Array.isArray(areas) && areas.length > 0) {

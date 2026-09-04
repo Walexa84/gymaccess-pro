@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Cpu, Trash2, RefreshCw, DoorOpen, Clock, AlertCircle } from 'lucide-react';
+import { MapPin, Cpu, Trash2, RefreshCw, DoorOpen, Clock, AlertCircle, Globe, Network } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 interface AreasTabProps {
@@ -22,6 +22,8 @@ export const AreasTab: React.FC<AreasTabProps> = ({
   const [nuevaTerminal, setNuevaTerminal] = useState({
     area_id: '',
     nombre: '',
+    origen: 'LOCAL',
+    cloud_device_serial: '',
     ip: '',
     puerto: '80',
     usuario: 'admin',
@@ -46,14 +48,20 @@ export const AreasTab: React.FC<AreasTabProps> = ({
 
   const crearTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...nuevaTerminal,
+      tipo_driver: nuevaTerminal.origen === 'TEAMS' ? 'HIKCONNECT_TEAMS' : 'HIKVISION_LOCAL_ISAPI',
+    };
     await fetch('/api/topology/terminales', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(nuevaTerminal)
+      body: JSON.stringify(payload)
     });
     setNuevaTerminal({
       area_id: '',
       nombre: '',
+      origen: 'LOCAL',
+      cloud_device_serial: '',
       ip: '',
       puerto: '80',
       usuario: 'admin',
@@ -108,13 +116,13 @@ export const AreasTab: React.FC<AreasTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Banner Informativo Multi-Terminal */}
+      {/* Banner Informativo Emulación Teams */}
       <div className="p-4 rounded-2xl bg-theme-subtle border border-theme flex items-start gap-3">
         <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${isCyber ? 'text-volt' : 'text-sport-orange'}`} />
         <div className="text-xs text-muted-theme space-y-1">
-          <p className="font-bold text-main-theme">Gestión Multi-Terminal (Entradas y Salidas Independientes)</p>
+          <p className="font-bold text-main-theme">Gestión de Equipos y Áreas (Modelo Teams + Vigencias de Gimnasio)</p>
           <p>
-            Puedes registrar 2, 4 o más checadores faciales y torniquetes por sucursal. Asigna a cada uno su IP física y dirección (Entrada o Salida). Al registrar fotos o cobrar membresías, el sistema sincroniza automáticamente el acceso a todas las terminales autorizadas.
+            Emula la consola de Hik-Connect Teams: puedes asociar checadores tanto de la nube (Teams OpenAPI) como locales (ISAPI LAN). Al cobrar una membresía en recepción, el sistema despacha las vigencias exactas a todas las terminales autorizadas.
           </p>
         </div>
       </div>
@@ -153,11 +161,31 @@ export const AreasTab: React.FC<AreasTabProps> = ({
           </button>
         </form>
 
-        {/* Alta de Terminal */}
+        {/* Alta de Terminal con Selector de Origen (Teams vs Local) */}
         <form onSubmit={crearTerminal} className="bg-card-theme border border-theme card-shadow-theme rounded-2xl p-5 space-y-3">
-          <h3 className="font-bold text-sm text-main-theme flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-accent-theme" /> 2. Vincular Terminal / Checador
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-main-theme flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-accent-theme" /> 2. Vincular Terminal / Checador
+            </h3>
+            {/* Selector de Origen */}
+            <div className="flex rounded-lg border border-theme p-0.5 bg-theme-subtle text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setNuevaTerminal({ ...nuevaTerminal, origen: 'LOCAL' })}
+                className={`px-2 py-0.5 rounded transition ${nuevaTerminal.origen === 'LOCAL' ? (isCyber ? 'bg-volt text-black' : 'bg-sport-orange text-white') : 'text-muted-theme'}`}
+              >
+                🔌 Local LAN
+              </button>
+              <button
+                type="button"
+                onClick={() => setNuevaTerminal({ ...nuevaTerminal, origen: 'TEAMS' })}
+                className={`px-2 py-0.5 rounded transition ${nuevaTerminal.origen === 'TEAMS' ? 'bg-cyan-500 text-black' : 'text-muted-theme'}`}
+              >
+                ☁️ Teams Cloud
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs font-bold text-muted-theme">Nombre del Equipo *</label>
@@ -182,71 +210,88 @@ export const AreasTab: React.FC<AreasTabProps> = ({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2">
-              <label className="text-xs font-bold text-muted-theme">IP del Checador *</label>
+
+          {/* Campos según Origen */}
+          {nuevaTerminal.origen === 'TEAMS' ? (
+            <div>
+              <label className="text-xs font-bold text-muted-theme">Serial del Dispositivo Teams *</label>
               <input
                 required
-                placeholder="192.168.1.100"
-                value={nuevaTerminal.ip}
-                onChange={e => setNuevaTerminal({ ...nuevaTerminal, ip: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
+                placeholder="Ej. DS-K1T343MWX-ABC12345"
+                value={nuevaTerminal.cloud_device_serial}
+                onChange={e => setNuevaTerminal({ ...nuevaTerminal, cloud_device_serial: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme font-mono mt-1"
               />
             </div>
-            <div>
-              <label className="text-xs font-bold text-muted-theme">Puerto</label>
-              <input
-                placeholder="80"
-                value={nuevaTerminal.puerto}
-                onChange={e => setNuevaTerminal({ ...nuevaTerminal, puerto: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
-              />
-            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="text-xs font-bold text-muted-theme">IP del Checador *</label>
+                  <input
+                    required
+                    placeholder="192.168.1.100"
+                    value={nuevaTerminal.ip}
+                    onChange={e => setNuevaTerminal({ ...nuevaTerminal, ip: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted-theme">Puerto</label>
+                  <input
+                    placeholder="80"
+                    value={nuevaTerminal.puerto}
+                    onChange={e => setNuevaTerminal({ ...nuevaTerminal, puerto: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-theme">Contraseña Admin SADP</label>
+                <input
+                  type="password"
+                  placeholder="Opcional (Usa la general si se deja vacía)"
+                  value={nuevaTerminal.password}
+                  onChange={e => setNuevaTerminal({ ...nuevaTerminal, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="text-xs font-bold text-muted-theme">Área Asignada</label>
+            <select
+              value={nuevaTerminal.area_id}
+              onChange={e => setNuevaTerminal({ ...nuevaTerminal, area_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
+            >
+              <option value="">-- Sin Área --</option>
+              {areas.map(a => <option key={a.id} value={a.id}>{a.nombre} {a.cloud_area_id ? '(Teams)' : ''}</option>)}
+            </select>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-bold text-muted-theme">Área Asignada</label>
-              <select
-                value={nuevaTerminal.area_id}
-                onChange={e => setNuevaTerminal({ ...nuevaTerminal, area_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
-              >
-                <option value="">-- Sin Área --</option>
-                {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-muted-theme">Contraseña Admin SADP</label>
-              <input
-                type="password"
-                placeholder="Opcional"
-                value={nuevaTerminal.password}
-                onChange={e => setNuevaTerminal({ ...nuevaTerminal, password: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl text-sm border border-theme bg-theme-subtle text-main-theme mt-1"
-              />
-            </div>
-          </div>
+
           <button
             type="submit"
             className={`w-full py-2 rounded-xl text-xs font-bold shadow-md ${isCyber ? 'bg-volt text-black' : 'bg-sport-orange text-white'}`}
           >
-            + Vincular Checador
+            + Vincular Checador ({nuevaTerminal.origen === 'TEAMS' ? 'Nube Teams' : 'Local'})
           </button>
         </form>
       </div>
 
-      {/* Catálogo de Terminales y Torniquetes Físicos */}
+      {/* Catálogo de Terminales / Equipos */}
       <div className="bg-card-theme border border-theme card-shadow-theme rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-theme font-bold text-sm text-main-theme flex items-center justify-between">
-          <span>Catálogo de Terminales y Torniquetes Físicos</span>
+          <span>Consola de Equipos y Puntos de Acceso</span>
           <span className="text-xs font-normal text-muted-theme">
-            {terminales.length} terminal{terminales.length === 1 ? '' : 'es'} registrada{terminales.length === 1 ? '' : 's'}
+            {terminales.length} equipo{terminales.length === 1 ? '' : 's'} registrado{terminales.length === 1 ? '' : 's'}
           </span>
         </div>
         <div className="divide-y divide-theme">
           {terminales.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-theme">
-              No hay terminales registradas aún. Agrega una terminal arriba para comenzar.
+              No hay equipos registrados aún. Puedes agregarlos arriba o sincronizarlos desde Teams en la pestaña Hardware.
             </div>
           ) : (
             terminales.map(t => (
@@ -254,6 +299,9 @@ export const AreasTab: React.FC<AreasTabProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-main-theme">{t.nombre}</span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${t.origen === 'TEAMS' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                      {t.origen === 'TEAMS' ? '☁️ Teams Cloud' : '🔌 Local LAN'}
+                    </span>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${t.direccion === 'ENTRADA' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : t.direccion === 'SALIDA' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'}`}>
                       {t.direccion}
                     </span>
@@ -262,7 +310,11 @@ export const AreasTab: React.FC<AreasTabProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-muted-theme mt-1">
-                    IP: <strong className="font-mono text-main-theme">{t.ip}:{t.puerto || '80'}</strong> • Usuario: <span className="font-mono">{t.usuario || 'admin'}</span>
+                    {t.origen === 'TEAMS' ? (
+                      <>Serial Nube: <strong className="font-mono text-cyan-400">{t.cloud_device_serial || 'Sin serial'}</strong></>
+                    ) : (
+                      <>IP: <strong className="font-mono text-main-theme">{t.ip}:{t.puerto || '80'}</strong> • Usuario: <span className="font-mono">{t.usuario || 'admin'}</span></>
+                    )}
                   </p>
                   {actionStatus[t.id] && (
                     <div className="mt-1.5 text-xs font-semibold text-accent-theme">
@@ -293,15 +345,17 @@ export const AreasTab: React.FC<AreasTabProps> = ({
                     <span>Abrir</span>
                   </button>
 
-                  <button
-                    onClick={() => sincronizarReloj(t)}
-                    disabled={loadingAction[t.id] === 'reloj'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme text-xs font-semibold text-main-theme hover:bg-theme-subtle transition"
-                    title="Ajustar hora de este checador"
-                  >
-                    <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Hora</span>
-                  </button>
+                  {t.origen !== 'TEAMS' && (
+                    <button
+                      onClick={() => sincronizarReloj(t)}
+                      disabled={loadingAction[t.id] === 'reloj'}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme text-xs font-semibold text-main-theme hover:bg-theme-subtle transition"
+                      title="Ajustar hora de este checador"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Hora</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => eliminarTerminal(t.id)}
