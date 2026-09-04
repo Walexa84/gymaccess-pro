@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Compilados de distribución
+dist/
+build/
+
+# Base de datos SQLite y respaldos locales (Tolerancia Cero a subir datos reales/PII)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/test_*.db
+backups/
+uploads/*.jpg
+uploads/*.png
+uploads/*.jpeg
+
+# Variables de entorno y secretos
+.env
+.env.local
+.env.*.local
+
+# Archivos de sistema y logs
+.DS_Store
+Thumbs.db
+*.log
+
+# Antigravity y cachés locales
+.gemini/

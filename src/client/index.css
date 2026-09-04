@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* ⚡ TEMA 1: CYBER-GYM ATHLETIC DARK */
+html.theme-cyber {
+  --bg-app: #090a0f;
+  --bg-card: #11141c;
+  --bg-card-hover: #161a24;
+  --bg-card-alt: #171b26;
+  --border-subtle: #1f2536;
+  --border-highlight: rgba(204, 255, 0, 0.3);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --accent-color: #ccff00;
+  --accent-hover: #b8e600;
+  --accent-contrast: #000000;
+  --accent-badge: rgba(204, 255, 0, 0.12);
+  --accent-glow: 0 0 25px -4px rgba(204, 255, 0, 0.3);
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  --nav-bg: rgba(13, 16, 24, 0.85);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+}
+
+/* ☀️ TEMA 2: CLEAN SPORT LIGHT */
+html.theme-clean {
+  --bg-app: #f4f6f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fbfcfe;
+  --bg-card-alt: #f8fafc;
+  --border-subtle: #e2e8f0;
+  --border-highlight: rgba(255, 87, 34, 0.35);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --accent-color: #ff5722;
+  --accent-hover: #f4511e;
+  --accent-contrast: #ffffff;
+  --accent-badge: rgba(255, 87, 34, 0.1);
+  --accent-glow: 0 0 20px -4px rgba(255, 87, 34, 0.3);
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  --nav-bg: rgba(255, 255, 255, 0.9);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+}
+
+/* Clases de utilidad semánticas */
+.bg-app-theme {
+  background-color: var(--bg-app);
+}
+
+.bg-card-theme {
+  background-color: var(--bg-card);
+}
+
+.bg-card-alt-theme {
+  background-color: var(--bg-card-alt);
+}
+
+.border-theme {
+  border-color: var(--border-subtle);
+}
+
+.border-highlight-theme {
+  border-color: var(--border-highlight);
+}
+
+.text-main-theme {
+  color: var(--text-main);
+}
+
+.text-muted-theme {
+  color: var(--text-muted);
+}
+
+.text-faint-theme {
+  color: var(--text-faint);
+}
+
+.text-accent-theme {
+  color: var(--accent-color);
+}
+
+.bg-accent-theme {
+  background-color: var(--accent-color);
+}
+
+.bg-accent-badge-theme {
+  background-color: var(--accent-badge);
+}
+
+.card-shadow-theme {
+  box-shadow: var(--card-shadow);
+}
+
+.accent-glow-theme {
+  box-shadow: var(--accent-glow);
+}
+
+/* Tipografía de display */
+.font-display {
+  font-family: 'Outfit', sans-serif;
+}
+
+.font-mono-numbers {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Scrollbars pulcros */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html.theme-cyber ::-webkit-scrollbar-thumb {
+  background: #1f2536;
+  border-radius: 4px;
+}
+
+html.theme-cyber ::-webkit-scrollbar-thumb:hover {
+  background: #2a334a;
+}
+
+html.theme-clean ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+html.theme-clean ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
