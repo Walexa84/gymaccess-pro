@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { db } from '../db/database.js';
-import { HikConnectService } from '../services/hikconnect.js';
+import { HardwareManager } from '../services/hardwareManager.js';
 
 export const sociosRouter = Router();
 
@@ -97,14 +97,14 @@ sociosRouter.post('/', async (req: Request, res: Response) => {
   let hikPersonId: string | null = null;
   let hikError: string | null = null;
 
-  // Intentar dar de alta en HikCentral Connect si está configurado
+  // Intentar dar de alta en la terminal (Cloud o Local según modo configurado)
   try {
-    hikPersonId = await HikConnectService.addPerson(nombre, telefono);
+    hikPersonId = await HardwareManager.addPerson(nombre, telefono);
     if (fotoBase64 && hikPersonId) {
-      await HikConnectService.uploadPersonPhoto(hikPersonId, fotoBase64);
+      await HardwareManager.uploadPersonPhoto(hikPersonId, fotoBase64);
     }
   } catch (err: any) {
-    console.warn('⚠️ No se pudo sincronizar inmediatamente con HikCentral:', err.message);
+    console.warn('⚠️ No se pudo sincronizar inmediatamente con hardware:', err.message);
     hikError = err.message;
   }
 

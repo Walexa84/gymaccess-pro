@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { db } from '../db/database.js';
-import { HikConnectService } from './hikconnect.js';
+import { HardwareManager } from './hardwareManager.js';
 
 export class SyncWorker {
   private static isRunning = false;
@@ -42,7 +42,7 @@ export class SyncWorker {
         try {
           if (socio.hik_person_id) {
             // Revocar nivel de acceso en la terminal facial
-            await HikConnectService.setPersonAccess(socio.hik_person_id, false);
+            await HardwareManager.setPersonAccess(socio.hik_person_id, false);
           }
 
           // Actualizar estatus local en transacción
@@ -79,7 +79,7 @@ export class SyncWorker {
       for (const socio of sociosConMembresiaFutura) {
         try {
           if (socio.hik_person_id) {
-            await HikConnectService.setPersonAccess(socio.hik_person_id, true);
+            await HardwareManager.setPersonAccess(socio.hik_person_id, true);
           }
           db.prepare(`UPDATE socios SET estatus = 'VIGENTE', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?`).run(socio.id);
           console.log(`✅ Acceso reactivado en reconciliación para: ${socio.nombre}`);

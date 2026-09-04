@@ -4,8 +4,7 @@ import { Navbar } from './components/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { Socios } from './pages/Socios';
 import { Cobro } from './pages/Cobro';
-import { Hardware } from './pages/Hardware';
-import { Backups } from './pages/Backups';
+import { Configuracion } from './pages/Configuracion';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -24,8 +23,7 @@ function AppContent() {
         {activeTab === 'dashboard' && <Dashboard onNavigateCobro={() => setActiveTab('cobro')} />}
         {activeTab === 'socios' && <Socios onSelectSocioForCobro={handleCobroSocio} />}
         {activeTab === 'cobro' && <Cobro selectedSocioPreload={selectedSocioForCobro} />}
-        {activeTab === 'hardware' && <Hardware />}
-        {activeTab === 'backups' && <Backups />}
+        {activeTab === 'configuracion' && <Configuracion />}
       </main>
 
       <footer className="border-t border-theme py-5 text-center text-xs text-muted-theme transition-colors">

@@ -23,8 +23,9 @@ Para iniciar el sistema en el gimnasio:
 graph TD
     A[Inicio / Monitor de Recepción] --> B[Directorio de Socios]
     A --> C[Punto de Cobro y Membresías]
-    A --> D[Terminales Faciales Hikvision]
-    A --> E[Respaldos y Mantenimiento]
+    A --> D[Configuración del Sistema ⚙️]
+    D --> D1[Hardware & Conectividad: Cloud Teams / Local ISAPI / Pro / Simulado]
+    D --> D2[Respaldos & Base de Datos SQLite]
 ```
 
 ---
@@ -45,7 +46,7 @@ Es el panel principal que ve el recepcionista durante el turno de entrada. Propo
 
 ---
 
-### 📍 Pantalla 2: Directorio de Socios (`/members`)
+### 📍 Pantalla 2: Directorio de Socios (`/socios`)
 
 #### Propósito
 Control integral del padrón de clientes del gimnasio, captura de datos personales, fotografía facial y estado de cada socio.
@@ -56,92 +57,127 @@ Control integral del padrón de clientes del gimnasio, captura de datos personal
 | **Buscar Socio** | Campo de texto | Texto libre (nombre, apellido o número de teléfono) | Filtra la tabla de socios instantáneamente al escribir |
 | **Filtro de Estado** | Selector / Botones | Todos / Vigentes / Vencidos | Filtra la tabla mostrando únicamente la categoría seleccionada |
 | **Nuevo Socio** | Botón Primario | Abre el formulario modal de alta de cliente | Despliega ventana emergente para registrar nuevo socio |
-| **Input: Nombre Completo** | Texto obligatorio | Mínimo 3 caracteres | Nombre del socio que se registrará en la base y en HikCentral |
+| **Input: Nombre Completo** | Texto obligatorio | Mínimo 3 caracteres | Nombre del socio que se registrará en la base y en la terminal |
 | **Input: Teléfono** | Texto / Numérico | 10 dígitos | Contacto para avisos y búsqueda rápida |
-| **Input: Correo Electrónico**| Texto opcional | Formato de email válido | Datos de contacto para envío de comprobantes |
-| **Input: Subir Fotografía** | Archivo imagen | Formato JPG/PNG, máximo 2MB, rostro despejado | Previsualiza la foto y la procesa en Base64 para enviarla al facial |
-| **Botón: Guardar Socio** | Botón de acción | Valida campos requeridos | Guarda en SQLite y provisiona al socio en HikCentral Connect |
-| **Botón: Cobrar** (en fila) | Botón verde | N/A (usa ID del socio) | Abre el Punto de Cobro con el socio pre-seleccionado |
-| **Botón: Sincronizar Facial**| Botón azul | N/A | Fuerza el re-envío del rostro y credenciales al terminal biométrico |
+| **Fotografía Facial** | Carga / Webcam | Archivo JPG/PNG o captura en vivo | Enrola la cara del socio directamente en la terminal biométrica |
 
 ---
 
-### 📍 Pantalla 3: Punto de Cobro y Renovación (`/pos`)
+### 📍 Pantalla 3: Punto de Cobro (`/cobro`)
 
 #### Propósito
-Caja rápida para registrar cobros de cuotas de gimnasio y activar inmediatamente el acceso en los torniquetes o terminales faciales.
-
-#### Detalle Botón por Botón / Control por Control
-| Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
-| :--- | :--- | :--- | :--- |
-| **Buscador de Socio** | Selector interactivo | Búsqueda por nombre o teléfono | Carga los datos del socio y su fecha de vencimiento actual |
-| **Plan / Membresía** | Botones de selección | Mensual ($500), Trimestral ($1,350), Anual ($4,800), Visita Día ($80) | Calcula el importe a cobrar y la nueva fecha de vencimiento |
-| **Método de Pago** | Selector | Efectivo / Tarjeta Bancaria / Transferencia | Registra la forma de pago en la auditoría contable |
-| **Monto Recibido** | Campo numérico | Cantidad entregada por el cliente | Calcula el cambio en caso de pago en efectivo |
-| **Registrar Pago y Otorgar Acceso** | Botón de Cobro | Valida importe y socio seleccionado | **1.** Guarda el pago en SQLite.<br>**2.** Extiende la vigencia del socio.<br>**3.** Otorga de inmediato el Nivel de Acceso en HikCentral Connect.<br>**4.** El facial permite el paso al instante. |
+Venta rápida de membresías, selección de plan, registro del método de pago y reactivación inmediata del acceso físico en el torniquete.
 
 ---
 
-### 📍 Pantalla 4: Terminales y Hardware Hikvision (`/hardware`)
+### 📍 Pantalla 4: Configuración del Sistema (`/configuracion`)
 
 #### Propósito
-Supervisión y control técnico de los dispositivos biométricos MinMoe y configuración del enlace cloud con Syscom / HikCentral Connect.
+Panel administrativo centralizado con 4 subpestañas especializadas para gestionar la conectividad del hardware, la topología de accesos (áreas y torniquetes), horarios, niveles de acceso vinculados a planes y respaldos del sistema.
 
-#### Detalle Botón por Botón / Control por Control
-| Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
-| :--- | :--- | :--- | :--- |
-| **Test de Conexión** | Botón de prueba | Verifica AppKey y AppSecret contra los servidores Syscom | Muestra estado `200 OK` y latencia de respuesta |
-| **Dispositivos Detectados** | Lista / Cards | Muestra los números de serie y nombres (ej. *Checador Araucarias*) | Confirma si el terminal está en línea |
-| **Niveles de Acceso** | Selector / Badge | Muestra los Access Levels de HikCentral (ej. `684236721751815168`) | Asigna a qué puertas/torniquetes tienen permiso los socios |
-| **Forzar Sincronización Total**| Botón de emergencia | Revisa todos los socios en la base de datos | Aplica la regla: Vigentes ➔ Acceso Permitido; Vencidos ➔ Acceso Revocado |
+```mermaid
+graph TD
+    Conf[⚙️ Configuración del Sistema] --> S1[Subpestaña 1: Hardware & Reloj 🕒]
+    Conf --> S2[Subpestaña 2: Áreas & Terminales 🚪]
+    Conf --> S3[Subpestaña 3: Horarios & Niveles de Acceso 🎛️]
+    Conf --> S4[Subpestaña 4: Respaldos SQLite 💾]
+```
 
 ---
 
-### 📍 Pantalla 5: Respaldos y Mantenimiento (`/backups`)
+#### 🎛️ Subpestaña 1: Hardware, Zona Horaria & Reloj del Checador
+Permite seleccionar el driver de comunicación y auditar la sincronización horaria de los checadores biométricos:
 
-#### Propósito
-Garantizar la seguridad de la información del gimnasio mediante copias de seguridad atómicas en caliente que no interrumpen el cobro ni el acceso.
+1. **Hik-Connect Teams (Cloud OpenAPI):**
+   - Para gimnasios conectados a internet mediante la plataforma en la nube HikCentral Connect / Teams.
+   - Requiere `App Key`, `Secret Key` y el `Access Level ID` del portal.
+2. **Hikvision Local Directo (ISAPI LAN):**
+   - **Recomendado para operación local sin internet.** Conexión directa a la IP del checador (ej. `192.168.1.100`, puerto `80`, usuario `admin` y contraseña).
+   - Inyecta directamente `Valid.beginTime` y `Valid.endTime` en la memoria interna del checador facial.
+3. **HikCentral Professional (Servidor Artemis):**
+   - Para instalaciones corporativas con servidor HikCentral dedicado on-premise.
+4. **Modo Virtual / Simulado:**
+   - Permite operar el sistema para demostraciones sin hardware físico conectado.
 
-#### Detalle Botón por Botón / Control por Control
 | Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
 | :--- | :--- | :--- | :--- |
-| **Crear Respaldo Ahora** | Botón Primario | Ejecuta `VACUUM INTO` en la base SQLite | Genera archivo `gyms_backup_YYYYMMDD_HHMMSS.db` en la carpeta `backups/` |
-| **Historial de Respaldos** | Tabla | Lista de copias con fecha, hora y peso en MB | Permite auditoría de copias de seguridad existentes |
-| **Descargar Respaldo** | Enlace / Botón | N/A | Permite guardar el archivo `.db` en una memoria USB externa |
+| **Selector de Driver** | Tarjetas interactivas | Elige el driver activo (Teams / ISAPI / Artemis / Mock) | Adapta los parámetros requeridos dinámicamente |
+| **Zona Horaria del Gimnasio** | Selector IANA | Zona horaria local (ej. `America/Mexico_City`, `America/Tijuana`, `America/Cancun`) | Fija la referencia temporal para reportes, cobros y sincronización |
+| **Reloj Sistema vs Checador** | Monitor en vivo | Muestra la hora del servidor y la hora leída del checador | Calcula el desfase (drift en segundos) |
+| **Sincronizar Reloj del Checador** | Botón de acción | Envía la hora actual y zona horaria al checador (`/ISAPI/System/time`) | Ajusta el RTC del checador evitando accesos indebidos |
+| **Probar Conexión en Vivo** | Botón de test | Ejecuta handshake contra la terminal o nube | Confirma estado online, modelo y firmware |
+| **Abrir Torniquete (Prueba)** | Botón de pulso | Envía comando de apertura remota manual | Activa el relevador para pruebas de paso |
+| **Auditoría Forzada** | Botón de sincronización | Revisa todos los socios en la base de datos | Bloquea vencidos y reactiva vigentes en el hardware |
+
+---
+
+#### 🚪 Subpestaña 2: Áreas & Baterías de Terminales
+Permite modelar sucursales con múltiples torniquetes (ej. 2 de Entrada y 2 de Salida) y zonificación interna (General, VIP):
+
+| Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
+| :--- | :--- | :--- | :--- |
+| **Nueva Área** | Botón / Formulario | Nombre del área (ej. *Acceso General*, *Área de Pesas*, *Zona VIP*) | Registra una zona física en la base de datos |
+| **Añadir Terminal** | Botón / Formulario | Nombre, IP de red, Dirección (*Entrada* o *Salida*) y Área | Registra un checador físico en la batería correspondiente |
+| **Lista de Terminales** | Tabla interactiva | Muestra IP, dirección de paso, área asignada y estado | Permite editar o eliminar terminales de la topología |
+
+---
+
+#### 🎛️ Subpestaña 3: Horarios & Niveles de Acceso
+Permite definir turnos y asociar qué áreas físicas pueden cruzarse y en qué horario:
+
+| Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
+| :--- | :--- | :--- | :--- |
+| **Nuevo Horario** | Formulario | Nombre (ej. *Total 24/7*, *Matutino*, *Estudiante*), Días de la semana y Rango Horario (06:00 a 14:00) | Define una regla temporal de cruce |
+| **Nuevo Nivel de Acceso** | Formulario | Nombre del nivel, Horario aplicable y selección de Áreas permitidas | Crea el paquete de autorización de paso |
+| **Vinculación con Planes** | Selector en Planes | Asocia un Nivel de Acceso a cada Plan de Membresía | Al cobrar una membresía, el socio recibe automáticamente este nivel |
+
+---
+
+#### 💾 Subpestaña 4: Respaldos & Base de Datos SQLite
+| Control / Botón | Tipo | Qué captura / valida | Resultado / Efecto |
+| :--- | :--- | :--- | :--- |
+| **Crear Respaldo Ahora** | Botón Primario | Ejecuta copia atómica en caliente (`VACUUM INTO`) | Genera archivo fechado `.db` en la carpeta `backups/` sin bloquear cobros |
+| **Historial de Respaldos** | Tabla | Lista de copias con fecha, hora y peso en KB | Permite auditar y verificar integridad de las copias |
+| **Descargar Respaldo** | Icono de descarga | N/A | Descarga el archivo `.db` a la computadora para guardar en USB |
 
 ---
 
 ## 🧪 3. Ejemplos Prácticos de Flujo Operativo
 
-### Flujo 1: Registro de un Nuevo Cliente con Foto Facial
+### Flujo 1: Registro de un Nuevo Socio con Foto Facial
 1. Mario o el recepcionista abre el sistema en `http://localhost:3000`.
 2. Da clic en la pestaña **Socios** y presiona el botón **+ Nuevo Socio**.
-3. Rellena los datos de prueba:
+3. Rellena los datos:
    - **Nombre:** `Carlos Gómez Ramírez`
    - **Teléfono:** `2281234567`
    - **Correo:** `carlos.gomez@gmail.com`
-4. En **Fotografía del Socio**, da clic en seleccionar archivo y sube una foto frontal bien iluminada del rostro de Carlos.
+4. En **Fotografía Facial**, sube una foto o usa la cámara web para captura en vivo.
 5. Presiona **Guardar Socio**.
-6. **Resultado:** El socio queda guardado. Su estado inicial es *Vencido / Sin Acceso* hasta que realice su primer pago.
+6. **Resultado:** El socio queda registrado como *Vencido / Sin Acceso* hasta que realice su primer pago.
 
-### Flujo 2: Cobro de Mensualidad y Habilitación Inmediata de Acceso
+### Flujo 2: Cobro de Membresía y Habilitación Inmediata de Acceso
 1. Desde la fila de Carlos Gómez, da clic en el botón verde **Cobrar**.
 2. En la pantalla de Cobro:
-   - Selecciona el plan: **Mensual ($500.00)**.
-   - El sistema calcula automáticamente la nueva fecha de vigencia: `Hoy + 30 días`.
-   - Selecciona **Efectivo** e ingresa `$500.00`.
+   - Selecciona el plan: **Matutino ($400.00)** (vinculado al Nivel de Acceso "Matutino 6am a 2pm").
+   - El sistema calcula la vigencia: `Hoy + 30 días` a las `23:59:59`.
+   - Selecciona método de pago e ingresa el importe.
 3. Da clic en **Registrar Pago y Otorgar Acceso**.
-4. **Resultado en Pantalla:** Aparece alerta verde de "Pago Registrado Exitosamente".
-5. **Resultado en Hardware:** El servidor envía el comando a HikCentral Connect asignando a Carlos el Access Level `684236721751815168` ("Araucarias"). Al colocarse Carlos frente al checador facial, la pantalla del terminal muestra *"Acceso Concedido"* y abre el torniquete.
+4. **Resultado en Pantalla:** Alerta verde de pago exitoso.
+5. **Resultado en Hardware según el Modo Activo:**
+   - **En Hik-Connect Teams (Cloud):** El sistema asigna a Carlos al Access Level ID en la nube.
+   - **En Hikvision Local (ISAPI LAN):** El sistema inyecta en el checador a Carlos con su foto y `Valid.endTime = 2026-10-04T23:59:59`.
+   - Al colocarse Carlos frente al checador, éste muestra *"Acceso Concedido"* y abre el torniquete de entrada.
 
-### Flujo 3: Revocación Automática por Vencimiento (Tolerancia Cero)
-1. Llega la medianoche (`00:00:01`) o el momento exacto en que vence la mensualidad de un cliente.
-2. El **SyncWorker** en segundo plano detecta que la fecha de vigencia ha expirado.
-3. Automáticamente envía la orden de desvinculación a HikCentral Connect (`/accesslevel/member/batch/delete`).
-4. **Resultado:** Cuando el socio intenta ingresar esa mañana, el checador facial muestra *"Acceso Denegado / Sin Permiso"* y la puerta permanece cerrada hasta que pase a recepción a renovar.
+### Flujo 3: Corte Autónomo por Vencimiento (Servidor Apagado a Medianoche)
+1. Llega el último día de membresía de un socio.
+2. El dueño del gimnasio apaga la computadora del servidor a las `22:00`.
+3. A las `23:59:59`, la vigencia interna (`Valid.endTime`) grabada en el chip del checador expira.
+4. A las `06:00` del día siguiente, antes de que el dueño encienda la computadora, el socio vencido intenta entrar.
+5. **Resultado:** El checador facial, guiado por su reloj interno, rechaza el acceso con *"Acceso Denegado / Caducado"*. **No hay fugas de acceso ni fraudes.**
 
-### Flujo 4: Generación de Respaldo Diario al Cerrar Turno
-1. Al terminar la jornada, el recepcionista o administrador va a la pestaña **Respaldos**.
-2. Da clic en el botón azul **Crear Respaldo Ahora**.
-3. En menos de 1 segundo, el sistema genera la copia atómica `gyms_backup_20260904_210000.db`.
-4. El usuario puede copiar dicho archivo a una unidad USB o carpeta de Google Drive / OneDrive para máxima seguridad.
+### Flujo 4: Sincronización y Ajuste del Reloj del Checador
+1. Si el recepcionista observa en la barra superior (Navbar) un indicador amarillo o rojo de desfase de reloj (ej. `Checador: +45s` o desvío de zona horaria).
+2. Va a **Configuración > Hardware & Reloj**.
+3. Verifica que la zona horaria corresponda a la de su ciudad (ej. `America/Mexico_City`).
+4. Presiona el botón azul **Sincronizar Reloj del Checador**.
+5. El sistema inyecta la hora exacta por red al checador. El indicador en la barra superior pasa a verde (`Sincronizado`).

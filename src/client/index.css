@@ -8,6 +8,7 @@
 
 /* ⚡ TEMA 1: CYBER-GYM ATHLETIC DARK */
 html.theme-cyber {
+  color-scheme: dark;
   --bg-app: #090a0f;
   --bg-card: #11141c;
   --bg-card-hover: #161a24;
@@ -30,6 +31,7 @@ html.theme-cyber {
 
 /* ☀️ TEMA 2: CLEAN SPORT LIGHT */
 html.theme-clean {
+  color-scheme: light;
   --bg-app: #f4f6f9;
   --bg-card: #ffffff;
   --bg-card-hover: #fbfcfe;
@@ -138,4 +140,38 @@ html.theme-clean ::-webkit-scrollbar-thumb {
 
 html.theme-clean ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ========================================================= */
+/* 🎛️ CONTRASTE Y LEGIBILIDAD EN INPUTS Y SELECTORES        */
+/* ========================================================= */
+html.theme-cyber select,
+html.theme-cyber option,
+html.theme-cyber optgroup {
+  background-color: #11141c !important;
+  color: #f8fafc !important;
+}
+
+html.theme-cyber select:focus,
+html.theme-cyber option:checked,
+html.theme-cyber option:hover {
+  background-color: #1a202c !important;
+  color: #ccff00 !important;
+}
+
+html.theme-clean select,
+html.theme-clean option,
+html.theme-clean optgroup {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+input[type="time"],
+input[type="date"] {
+  color-scheme: inherit;
+}
+
+html.theme-cyber input[type="time"]::-webkit-calendar-picker-indicator,
+html.theme-cyber input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }

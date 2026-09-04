@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/database.js';
-import { HikConnectService } from '../services/hikconnect.js';
+import { HardwareManager } from '../services/hardwareManager.js';
 
 export const pagosRouter = Router();
 
@@ -80,12 +80,13 @@ pagosRouter.post('/', async (req: Request, res: Response) => {
 
   if (socio.hik_person_id) {
     try {
-      await HikConnectService.setPersonAccess(socio.hik_person_id, true);
+      const specificLevel = plan.nivel_acceso_id ? String(plan.nivel_acceso_id) : undefined;
+      await HardwareManager.setPersonAccess(socio.hik_person_id, true, specificLevel, fechaFinStr);
       hikOk = true;
-      console.log(`🔓 Acceso facial activado en HikCentral para socio: ${socio.nombre}`);
+      console.log(`🔓 Acceso facial activado en terminal para socio: ${socio.nombre} (Vigencia autónoma hasta: ${fechaFinStr})`);
     } catch (err: any) {
       hikError = err.message;
-      console.error(`⚠️ No se pudo conceder acceso en HikCentral:`, err.message);
+      console.error(`⚠️ No se pudo conceder acceso en terminal:`, err.message);
     }
   }
 

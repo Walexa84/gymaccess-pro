@@ -1,5 +1,5 @@
-import React from 'react';
-import { Zap, Sun, Users, CreditCard, Cpu, Database, Activity, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Zap, Sun, Users, CreditCard, Activity, Settings, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface NavbarProps {
@@ -10,16 +10,61 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwareOnline }) => {
   const { theme, toggleTheme } = useTheme();
+  const isCyber = theme === 'cyber';
+
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [timeZone, setTimeZone] = useState<string>('America/Mexico_City');
+  const [timeSynced, setTimeSynced] = useState<boolean>(true);
+  const [driftSeconds, setDriftSeconds] = useState<number>(0);
 
   const tabs = [
     { id: 'dashboard', label: 'Monitor Recepción', icon: Activity },
     { id: 'socios', label: 'Socios', icon: Users },
     { id: 'cobro', label: 'Punto de Cobro', icon: CreditCard },
-    { id: 'hardware', label: 'Terminales Hikvision', icon: Cpu },
-    { id: 'backups', label: 'Respaldos', icon: Database },
+    { id: 'configuracion', label: 'Configuración', icon: Settings },
   ];
 
-  const isCyber = theme === 'cyber';
+  // Consultar telemetría de hora y sincronía cada 30 segundos
+  const fetchTimeTelemetry = () => {
+    fetch('/api/hardware/time')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setTimeZone(data.timeZone || 'America/Mexico_City');
+          setTimeSynced(data.isSynced);
+          setDriftSeconds(data.driftSeconds || 0);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchTimeTelemetry();
+    const telemetryInterval = setInterval(fetchTimeTelemetry, 30000);
+    return () => clearInterval(telemetryInterval);
+  }, []);
+
+  // Segundero en vivo según la zona horaria del gimnasio
+  useEffect(() => {
+    const tick = () => {
+      try {
+        const formatted = new Intl.DateTimeFormat('es-MX', {
+          timeZone,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        }).format(new Date());
+        setCurrentTime(formatted);
+      } catch {
+        setCurrentTime(new Date().toLocaleTimeString());
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [timeZone]);
 
   return (
     <header className="sticky top-0 z-40 transition-colors duration-300 border-b border-theme bg-[var(--nav-bg)] backdrop-blur-md">
@@ -46,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwar
                 </span>
               </div>
               <p className="text-[11px] text-muted-theme font-medium leading-none mt-0.5">
-                Biometría Facial & Acceso HikCentral
+                Biometría Facial & Acceso Hikvision
               </p>
             </div>
           </div>
@@ -64,7 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwar
                     isActive
                       ? isCyber
                         ? 'bg-volt text-black shadow-volt-glow font-bold'
-                        : 'bg-sport-orange text-white shadow-orange-glow font-bold'
+                        : 'bg-sport-orange text-white shadow-orange-glow'
                       : isCyber
                       ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -77,13 +122,34 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwar
             })}
           </nav>
 
-          {/* Controles y Estados a la derecha */}
-          <div className="flex items-center gap-3">
+          {/* Controles y Telemetría en Vivo */}
+          <div className="flex items-center gap-2.5">
+            {/* Widget de Reloj del Sistema & Telemetría */}
+            <div
+              onClick={() => setActiveTab('configuracion')}
+              title={`Hora del Gimnasio (${timeZone}). Desfase Checador: ${driftSeconds}s. Clic para configurar`}
+              className={`cursor-pointer hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all ${
+                timeSynced
+                  ? isCyber
+                    ? 'bg-[#151922] border-slate-700/80 text-slate-200 hover:border-volt/60'
+                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-sport-orange/60 shadow-sm'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-muted-theme" />
+              <span>{currentTime || '00:00:00'}</span>
+              {timeSynced ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-500" title="Reloj sincronizado con checadores" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" title="Desfase de reloj detectado" />
+              )}
+            </div>
+
             {/* Selector de Tema en Vivo */}
             <button
               onClick={toggleTheme}
               title={isCyber ? 'Cambiar a estilo Clean Sport (Claro)' : 'Cambiar a estilo Cyber-Gym (Oscuro)'}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 border ${
                 isCyber
                   ? 'bg-[#151922] border-slate-700/80 text-volt hover:border-volt/60'
                   : 'bg-slate-100 border-slate-200 text-sport-orange hover:border-sport-orange/60 shadow-sm'
@@ -92,12 +158,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwar
               {isCyber ? (
                 <>
                   <Zap className="w-3.5 h-3.5 fill-volt text-volt" />
-                  <span>Cyber Volt</span>
+                  <span className="hidden md:inline">Cyber</span>
                 </>
               ) : (
                 <>
                   <Sun className="w-3.5 h-3.5 text-sport-orange" />
-                  <span>Clean Sport</span>
+                  <span className="hidden md:inline">Clean</span>
                 </>
               )}
             </button>
@@ -116,13 +182,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, hardwar
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  hardwareOnline
-                    ? 'bg-emerald-500 animate-pulse'
-                    : 'bg-amber-500'
+                  hardwareOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
                 }`}
               />
-              <span className="hidden sm:inline">
-                {hardwareOnline ? 'Hikvision Online' : 'Terminal Offline'}
+              <span className="hidden md:inline">
+                {hardwareOnline ? 'Hardware Online' : 'Offline'}
               </span>
             </div>
           </div>

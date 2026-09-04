@@ -12,6 +12,7 @@ import { planesRouter } from './routes/planes.js';
 import { hardwareRouter } from './routes/hardware.js';
 import { backupsRouter } from './routes/backups.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { topologyRouter } from './routes/topology.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,7 @@ app.use('/api/planes', planesRouter);
 app.use('/api/hardware', hardwareRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/topology', topologyRouter);
 
 // Servir frontend en producción o cliente estático
 const clientDist = path.resolve(process.cwd(), 'dist', 'client');
