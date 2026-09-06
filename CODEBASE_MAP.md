@@ -1,83 +1,139 @@
-# 🗺️ MAPA DEL PROYECTO: Integración GYMS (GymAccess Pro)
+# 🗺️ MAPA DEL PROYECTO: Integración GYMS (GymAccess Pro V2.5)
 
-> **Propósito del Workspace:** Software comercial para administración de gimnasios (clientes, membresías, cobros) con soporte multi-driver de hardware biométrico facial Hikvision: Cloud (Hik-Connect Teams OpenAPI), Local Directo sin Internet (Hikvision ISAPI LAN) y Servidor Corporativo (HikCentral Professional Artemis).
+> **Propósito del Workspace:** Software comercial para administración de gimnasios (clientes, membresías, cobros) con motor de control de acceso agnóstico (**AccessCore**) compatible con hardware biométrico facial Hikvision: Nube Multi-Cuenta (**Hik-Connect Teams OpenAPI Multi-Tenant**), Local Directo sin Internet (**Hikvision ISAPI LAN**) y Servidor Corporativo (**HikCentral Professional Artemis**).
 
 ---
 
-## 📁 Estructura Completa de Archivos
+## 📁 Estructura Completa del Repositorio
 
 ```plaintext
 Integracion GYMS/
-├── iniciar.bat                  # Lanzador Windows de 1 clic (abre navegador y arranca servidor)
-├── package.json                 # Dependencias (Node 22, Express, React, Tailwind, Lucide)
-├── tsconfig.json                # Configuración TypeScript para cliente
-├── tsconfig.server.json         # Configuración TypeScript para servidor
-├── vite.config.ts               # Bundler Vite con proxy hacia API
-├── tailwind.config.js           # Estilos modernos Tailwind
+├── iniciar.bat                  # Lanzador Windows de 1 clic (arranca servidor y abre navegador)
+├── package.json                 # Dependencias (Node 22, Express, React 18, Tailwind, Lucide)
+├── tsconfig.json                # Configuración TypeScript para React Vite
+├── tsconfig.server.json         # Configuración TypeScript para backend Express
+├── vite.config.ts               # Bundler Vite con proxy hacia API backend
+├── tailwind.config.js           # Estilos Tailwind CSS
 │
 ├── data/
-│   └── gym.db                   # Base de datos SQLite local (modo WAL)
-├── backups/                     # Copias de seguridad atómicas fechadas (.db)
-├── uploads/                     # Fotografías faciales de socios
+│   └── gym.db                   # Base de datos SQLite local (modo WAL nativo)
+├── backups/                     # Copias de seguridad atómicas fechadas (.db vía VACUUM INTO)
+├── uploads/                     # Fotografías faciales de socios y credenciales
 │
 ├── src/
-│   ├── server/                  # Backend Local (Node.js + Express)
-│   │   ├── index.ts             # Punto de entrada HTTP y servicios (Puerto 3000)
+│   ├── server/                  # Backend Modular (Node.js 22 LTS + Express)
+│   │   ├── index.ts             # Punto de entrada HTTP, Express, SSE y servicios (Puerto 3000)
+│   │   │
 │   │   ├── db/
-│   │   │   ├── database.ts      # Conexión nativa node:sqlite en modo WAL con defaults multi-driver
-│   │   │   └── schema.sql       # Tablas (socios, membresias, pagos, configuracion, accesos)
-│   │   ├── services/
-│   │   │   ├── hardwareDriver.ts     # Interfaz abstracta IHardwareDriver para desacople total
-│   │   │   ├── hardwareManager.ts    # Gestor unificado con conmutación de driver en caliente
-│   │   │   ├── hikconnectDriver.ts   # Adaptador para Hik-Connect Teams Cloud OpenAPI
-│   │   │   ├── hikvisionIsapi.ts     # Driver nativo HTTP Digest ISAPI para checadores LAN directos
-│   │   │   ├── hikcentralProDriver.ts# Driver para servidores On-Premise HikCentral Pro (Artemis)
-│   │   │   ├── mockDriver.ts         # Driver simulado para demostraciones y pruebas sin hardware
-│   │   │   ├── hikconnect.ts         # Cliente base HikCentral Connect OpenAPI V2.11.800
-│   │   │   ├── backupService.ts      # Respaldos en caliente atómicos (VACUUM INTO)
-│   │   │   └── syncWorker.ts         # Demonio de tolerancia cero (Startup Catch-up + Medianoche)
-│   │   └── routes/
-│   │       ├── auth.ts          # Autenticación de operadores de recepción
-│   │       ├── socios.ts        # CRUD de socios y carga de fotos faciales vía HardwareManager
-│   │       ├── pagos.ts         # Cobro de membresías, asignación de nivel y vigencia en hardware
-│   │       ├── planes.ts        # Catálogo de planes y vinculación con nivel_acceso_id
-│   │       ├── topology.ts      # CRUD de Áreas, Terminales (Entrada/Salida), Horarios y Niveles de Acceso
-│   │       ├── hardware.ts      # Endpoints multi-modo (configuración, telemetría y sincronización de reloj)
-│   │       ├── backups.ts       # Generación y descarga de copias de seguridad
-│   │       └── dashboard.ts     # KPIs y monitor de entradas en vivo
+│   │   │   ├── database.ts      # Conexión nativa node:sqlite en modo WAL, auto-migración y saneamiento
+│   │   │   └── schema.sql       # Tablas DDL (cuentas_hct, dispositivos, torniquetes, niveles_acceso, personas, gym_planes, etc.)
+│   │   │
+│   │   ├── modules/             # Arquitectura Modular Desacoplada (Dominio por Contextos)
+│   │   │   ├── access/          # Subdominio AccessCore (Control de Acceso Físico)
+│   │   │   │   ├── access.service.ts     # Orquestador de hardware, torniquetes, niveles y cuentas HCT
+│   │   │   │   ├── sucursales.service.ts # Orquestador de Sucursales/Gimnasios y asignación multicuenta
+│   │   │   │   ├── access.routes.ts      # Endpoints REST (/api/access/*)
+│   │   │   │   ├── isapi.listener.ts     # Receptor de eventos HTTP Digest ISAPI
+│   │   │   │   └── sse.manager.ts        # Canal SSE en tiempo real para el monitor de recepción
+│   │   │   │
+│   │   │   ├── iam/             # Subdominio IAM Core (Directorio Central de Personas)
+│   │   │   │   ├── iam.service.ts         # Lógica de enrolamiento y fotografía facial
+│   │   │   │   ├── teamsPerson.service.ts # Sincronización en vivo, triaje, importación y purga con Teams
+│   │   │   │   ├── ficha.service.ts       # Ficha integral del socio, actualización de foto biométrica y push a Teams
+│   │   │   │   └── iam.routes.ts          # Endpoints REST (/api/iam/*)
+│   │   │   │
+│   │   │   └── gym_pos/         # Subdominio Gym POS (Punto de Venta e Inyección de Vigencia)
+│   │   │       ├── pos.service.ts     # Cobro de planes y transmisión inmediata de Valid.endTime
+│   │   │       └── pos.routes.ts      # Endpoints REST (/api/pos/*)
+│   │   │
+│   │   ├── services/            # Controladores de Hardware y Utilidades
+│   │   │   ├── hikconnect.ts         # Cliente Hik-Connect Teams OpenAPI con caché de tokens Multi-Tenant
+│   │   │   ├── hikvisionIsapi.ts     # Driver ISAPI HTTP Digest nativo para checadores LAN directos
+│   │   │   ├── hikconnectDriver.ts   # Adaptador IHardwareDriver para Teams Cloud
+│   │   │   ├── hikcentralProDriver.ts# Driver para servidores Artemis On-Premise
+│   │   │   ├── telemetryService.ts   # Auditoría de latencias en ms, HTTP status y códigos OpenAPI
+│   │   │   ├── teamsErrorTranslator.ts# Traductor semántico de errores OpenAPI a explicaciones humanas
+│   │   │   ├── hardwareDriver.ts     # Interfaz abstracta IHardwareDriver
+│   │   │   ├── hardwareManager.ts    # Gestor unificado con conmutación en caliente
+│   │   │   ├── backupService.ts      # Generador de respaldos atómicos en caliente
+│   │   │   └── syncWorker.ts         # Demonio de auditoría de vigencias y latidos periódicos de hardware
+│   │   │
+│   │   └── routes/              # Rutas de soporte del sistema
+│   │       ├── auth.ts          # Autenticación de operadores
+│   │       ├── backups.ts       # Descarga y creación de copias de seguridad
+│   │       └── hardware.ts      # Diagnóstico, reloj y telemetría de hardware
 │   │
-│   └── client/                  # Frontend SPA (React + Tailwind CSS)
-│       ├── index.html           # Plantilla base con Google Fonts (Outfit, Plus Jakarta)
-│       ├── main.tsx             # Montaje de React
-│       ├── App.tsx              # Navegación principal con ThemeProvider y 4 pestañas limpias
+│   └── client/                  # Frontend SPA (React 18 + Tailwind CSS)
+│       ├── index.html           # Plantilla HTML con fuentes Outfit y Plus Jakarta
+│       ├── main.tsx             # Punto de entrada ReactDOM
+│       ├── App.tsx              # Router, barra superior y sondeo dinámico de salud de hardware
 │       ├── context/
-│       │   └── ThemeContext.tsx # Conmutador reactivo y persistencia de temas (Cyber-Gym / Clean Sport)
+│       │   └── ThemeContext.tsx # Contexto de temas visuales
+│       │
 │       ├── components/
-│       │   ├── Navbar.tsx       # Barra superior con segundero en vivo, telemetría de reloj del checador y navegación
-│       │   ├── WebcamModal.tsx  # Enrolamiento facial directo con cámara web
-│       │   └── config/          # Submódulos de Configuración (<500 líneas c/u)
-│       │       ├── HardwareTab.tsx  # Conexión, importación Teams OpenAPI y auditoría de reloj
-│       │       ├── AreasTab.tsx     # Gestión de áreas y terminales híbridas (Local LAN + Teams Cloud)
-│       │       ├── HorariosTab.tsx  # Días de semana, turnos y niveles de acceso con cloud_level_id
-│       │       └── RespaldosTab.tsx # Copias de seguridad atómicas SQLite en caliente
+│       │   ├── Navbar.tsx       # Barra de navegación con reloj de servidor y LED dinámico de hardware
+│       │   ├── WebcamModal.tsx  # Modal de captura facial directa con webcam
+│       │   ├── iam/
+│       │   │   ├── NuevaPersonaModal.tsx  # Alta unificada de persona con carnet 3:4 y paquete
+│       │   │   ├── FaceCropperModal.tsx   # Recortador biométrico 3:4 con silueta antropométrica
+│       │   │   ├── FichaPersonaModal.tsx  # Expediente integral con edición de datos y forzar envío
+│       │   │   ├── FichaPhotoCarnet.tsx   # Visualizador 3:4 con botones de carga PC y Webcam
+│       │   │   ├── FichaVigenciaCard.tsx  # Tarjeta de vigencia, días restantes y botones rápidos
+│       │   │   ├── FichaZonasList.tsx     # Selector de zonas y puertas de acceso autorizadas
+│       │   │   └── TeamsSyncModal.tsx     # Buzón de triaje, importación y purga de checador Teams
+│       │   └── config/          # Subpestañas modulares de Configuración (<500 líneas c/u)
+│       │       ├── SucursalesTab.tsx      # Gestión de Sucursales y Gimnasios (asigna terminales de N cuentas)
+│       │       ├── CuentasHctTab.tsx      # Gestión Multi-Cuenta HCT (100 usuarios gratis por org) y renombrado
+│       │       ├── NivelesAccesoTab.tsx   # Niveles de acceso y vinculación con torniquetes
+│       │       ├── PaquetesTab.tsx        # Paquetes comerciales y selección de puertas de acceso
+│       │       └── TelemetriaDrawer.tsx   # Bitácora en vivo de latencias OpenAPI y códigos de error
+│       │
 │       └── pages/
-│           ├── Dashboard.tsx    # Monitor de recepción y KPIs de alto contraste
-│           ├── Socios.tsx       # Directorio de socios con filtros y modal de alta
-│           ├── Cobro.tsx        # Punto de venta y reactivación biométrica
-│           └── Configuracion.tsx# Panel orquestador de 4 subpestañas modulares
+│           ├── Monitor.tsx      # Monitor en vivo con alertas visuales y pase en torniquetes
+│           ├── Personas.tsx     # Directorio central de personas (IAM Core con insignias de hardware)
+│           ├── Cobro.tsx        # Punto de venta y activación inmediata de torniquetes
+│           └── Configuracion.tsx# Panel orquestador de control de acceso y cuentas Teams
 │
-├── dist/client/                 # Bundle compilado de producción servido por Express
-├── CODEBASE_MAP.md              # Mapa vivo de arquitectura y módulos
-├── FUNCTIONAL_MAP.md            # Especificación funcional completa de producto
-├── USER_GUIDE.md                # Manual de Operación y Uso para el usuario final
-└── HIKCONNECT_API_REFERENCE.md  # Catálogo oficial de 44 endpoints de Syscom
+├── dist/client/                 # Bundle web compilado para producción
+├── USER_GUIDE.md                # Manual de Operación y Guía de Usuario pantalla por pantalla
+├── CODEBASE_MAP.md              # Este mapa vivo de arquitectura
+├── BACKLOG.md                   # Control de fases y tareas del proyecto
+└── HIKCONNECT_API_REFERENCE.md  # Catálogo oficial de endpoints HikCentral Connect
 ```
 
 ---
 
-## 🏛️ Guías y Documentación de Referencia
+## 🗄️ Esquema de Base de Datos Principal (`data/gym.db`)
 
-1. **[FUNCTIONAL_MAP.md](file:///c:/Users/Mario/Documents/Proyectos%20IA/Integracion%20GYMS/FUNCTIONAL_MAP.md):** Mapa funcional detallado con UX, pantallas y reglas de negocio.
-2. **[USER_GUIDE.md](file:///c:/Users/Mario/Documents/Proyectos%20IA/Integracion%20GYMS/USER_GUIDE.md):** Manual de operación detallado pantalla por pantalla.
-3. **[HIKCONNECT_API_REFERENCE.md](file:///c:/Users/Mario/Documents/Proyectos%20IA/Integracion%20GYMS/HIKCONNECT_API_REFERENCE.md):** Referencia completa de los 44 endpoints de HikCentral Connect.
-4. **[iniciar.bat](file:///c:/Users/Mario/Documents/Proyectos%20IA/Integracion%20GYMS/iniciar.bat):** Lanzador de 1 clic para que cualquier gimnasio lo ejecute sin complicaciones técnicas.
+| Tabla | Propósito | Llaves Foráneas / Campos Clave |
+| :--- | :--- | :--- |
+| `sucursales` | Sedes o gimnasios físicos del negocio | `id`, `nombre`, `direccion`, `telefono`, `activa` |
+| `sucursal_dispositivos` | Asociación M:N entre sucursales y dispositivos de múltiples cuentas | `sucursal_id`, `dispositivo_id` |
+| `gym_plan_sucursales` | Cobertura multi-sucursal por plan de membresía | `plan_id`, `sucursal_id` |
+| `cuentas_hct` | Gestión Multi-Cuenta / Multi-Sucursal de Hik-Connect Teams | `id`, `nombre`, `app_key`, `secret_key`, `base_url`, `activa`, `ultimo_sync` |
+| `dispositivos` | Checadores físicos (ISAPI LAN o Teams Cloud) | `id`, `cuenta_hct_id` ➔ `cuentas_hct(id)`, `ip`, `puerto`, `cloud_serial`, `estado_conexion` |
+| `torniquetes` | Carriles físicos de paso y relevadores | `id`, `dispositivo_id` ➔ `dispositivos(id)`, `canal_relevador`, `direccion`, `cloud_resource_id` |
+| `niveles_acceso` | Grupos de puertas autorizadas (Cloud o Local) | `id`, `cuenta_hct_id` ➔ `cuentas_hct(id)`, `cloud_level_id`, `origen` (`TEAMS` / `LOCAL`) |
+| `personas` | Directorio maestro de identidades | `id`, `nombre`, `telefono`, `tipo` (`SOCIO`, `EMPLEADO`, `VISITANTE`), `foto_url` |
+| `gym_planes` | Catálogo comercial de membresías | `id`, `nombre`, `precio`, `duracion_dias`, `nivel_acceso_id` ➔ `niveles_acceso(id)` |
+| `gym_membresias`| Estado de suscripción del socio | `id`, `persona_id` ➔ `personas(id)`, `plan_id` ➔ `gym_planes(id)`, `fecha_inicio`, `fecha_fin` |
+| `gym_pagos` | Registro de transacciones financieras | `id`, `membresia_id` ➔ `gym_membresias(id)`, `monto`, `metodo_pago`, `folio` |
+| `eventos_acceso`| Bitácora cronológica de cruces | `id`, `persona_id`, `torniquete_id`, `direccion` (`ENTRADA`/`SALIDA`), `resultado` |
+
+---
+
+## 🔌 Matriz de Endpoints REST Clave
+
+- **Multi-Cuenta Teams:**
+  - `GET /api/access/cuentas-hct` ➔ Lista de cuentas con métricas y estado.
+  - `POST /api/access/cuentas-hct` ➔ Registro de nueva cuenta con credenciales OpenAPI.
+  - `POST /api/access/cuentas-hct/:id/sync` ➔ Sincronización 1-clic de checadores, puertas y niveles de esa cuenta.
+  - `POST /api/access/cuentas-hct/sync-all` ➔ Sincronización en lote de todas las cuentas activas.
+- **Hardware & Torniquetes:**
+  - `GET /api/access/dispositivos` ➔ Inventario enriquecido con nombre de cuenta Teams y estado online.
+  - `POST /api/access/dispositivos/:id/test` ➔ Prueba en vivo de comunicación LAN ISAPI o Cloud Teams.
+  - `POST /api/access/dispositivos/:id/sync-time` ➔ Calibración del reloj interno de la terminal.
+  - `POST /api/access/torniquetes/:id/test-open` ➔ Apertura forzada remota del relevador físico.
+- **Vigencia y POS:**
+  - `POST /api/pos/cobrar` ➔ Registro de cobro e inyección instantánea de `Valid.endTime` en hardware.
+  - `GET /api/access/stream` ➔ Canal Server-Sent Events (SSE) con eventos reactivos para el monitor.

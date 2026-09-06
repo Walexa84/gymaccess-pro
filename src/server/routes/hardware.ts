@@ -166,12 +166,13 @@ hardwareRouter.post('/sync', async (_req: Request, res: Response) => {
 });
 
 // Sincronizar e importar recursos (dispositivos, áreas, niveles) desde Teams Cloud OpenAPI
-hardwareRouter.post('/teams/sync-resources', async (_req: Request, res: Response) => {
+hardwareRouter.post('/teams/sync-resources', async (req: Request, res: Response) => {
   try {
-    const result = await HikConnectService.syncResourcesToDatabase();
+    const cuentaId = req.body.cuentaId ? Number(req.body.cuentaId) : undefined;
+    const result = await HikConnectService.syncResourcesToDatabase(cuentaId);
     res.json({
       success: true,
-      message: `Sincronización con Teams exitosa: ${result.dispositivosImportados} equipos, ${result.areasImportadas} áreas y ${result.nivelesImportados} niveles de acceso importados.`,
+      message: `Sincronización con Teams exitosa: ${result.dispositivosImportados} equipos y ${result.nivelesImportados} niveles de acceso importados.`,
       data: result,
     });
   } catch (err: any) {

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle2, ShieldCheck, Printer, ArrowRight, Sparkles } from 'lucide-react';
+import { CreditCard, CheckCircle2, ShieldCheck, Printer, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioPreload }) => {
   const [planes, setPlanes] = useState<any[]>([]);
-  const [socios, setSocios] = useState<any[]>([]);
-  const [selectedSocioId, setSelectedSocioId] = useState<string>('');
+  const [personas, setPersonas] = useState<any[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA'>('EFECTIVO');
   const [procesando, setProcesando] = useState(false);
@@ -16,28 +16,30 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
   const isCyber = theme === 'cyber';
 
   useEffect(() => {
-    fetch('/api/planes')
+    fetch('/api/gym/planes')
       .then((res) => res.json())
       .then((data) => {
         setPlanes(data);
         if (data.length > 0) setSelectedPlanId(data[0].id.toString());
-      });
+      })
+      .catch(() => {});
 
-    fetch('/api/socios')
+    fetch('/api/iam/personas?tipo=SOCIO')
       .then((res) => res.json())
-      .then((data) => setSocios(data));
+      .then((data) => setPersonas(data))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (selectedSocioPreload) {
-      setSelectedSocioId(selectedSocioPreload.id.toString());
+      setSelectedPersonaId(selectedSocioPreload.id.toString());
     }
   }, [selectedSocioPreload]);
 
   const handleCobro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSocioId || !selectedPlanId) {
-      setError('Seleccione un socio y un plan');
+    if (!selectedPersonaId || !selectedPlanId) {
+      setError('Seleccione una persona y un plan');
       return;
     }
 
@@ -46,11 +48,11 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
       setError('');
       setResultado(null);
 
-      const res = await fetch('/api/pagos', {
+      const res = await fetch('/api/gym/cobro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          socioId: parseInt(selectedSocioId),
+          personaId: parseInt(selectedPersonaId),
           planId: parseInt(selectedPlanId),
           metodoPago,
         }),
@@ -58,7 +60,7 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Error al procesar el pago');
+        throw new Error(data.error || 'Error al procesar el cobro');
       }
 
       setResultado(data);
@@ -70,15 +72,16 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
   };
 
   const planSeleccionado = planes.find((p) => p.id.toString() === selectedPlanId);
+  const personaSeleccionada = personas.find((p) => p.id.toString() === selectedPersonaId);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 transition-colors duration-300">
       <div>
         <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-main-theme tracking-tight">
-          Punto de Cobro & Activación
+          Punto de Venta GYM & Cobro
         </h2>
         <p className="text-sm text-muted-theme mt-1 font-medium">
-          Renovación de membresías y habilitación física inmediata en torniquetes faciales
+          Cobro de planes y programación de vigencia autónoma en hardware facial
         </p>
       </div>
 
@@ -90,197 +93,180 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
             </div>
             <div>
               <h3 className="font-display font-bold text-xl text-main-theme">
-                ¡Cobro Registrado con Éxito!
+                ¡Cobro Registrado y Acceso Activado!
               </h3>
               <p className="text-xs font-mono-numbers text-emerald-400 font-semibold">
-                Ticket Folio #{resultado.folio}
+                Folio Ticket #{resultado.folio}
               </p>
             </div>
           </div>
 
-          <div className="bg-card-alt-theme p-4 rounded-xl border border-theme space-y-2.5 text-sm">
+          <div className="p-4 rounded-xl bg-theme-subtle border border-theme text-xs space-y-2">
             <div className="flex justify-between">
-              <span className="text-muted-theme">Socio:</span>
-              <span className="font-bold text-main-theme">{resultado.socio}</span>
+              <span className="text-muted-theme">Socio / Cliente:</span>
+              <span className="font-bold text-main-theme">{resultado.persona}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-theme">Plan Contratado:</span>
-              <span className="font-semibold text-main-theme">{resultado.plan}</span>
+              <span className="font-bold text-main-theme">{resultado.plan}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-theme">Monto Cobrado:</span>
-              <span className="font-black font-display text-lg text-emerald-400 font-mono-numbers">
-                ${resultado.monto.toFixed(2)}
-              </span>
+              <span className="font-black text-accent-theme">${resultado.monto} MXN</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-theme">Vigencia Hasta:</span>
-              <span className="font-bold text-main-theme font-mono-numbers">{resultado.vigenciaHasta}</span>
+              <span className="text-muted-theme">Método de Pago:</span>
+              <span className="font-semibold text-main-theme">{resultado.metodoPago}</span>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-theme">
-              <span className="text-muted-theme">Terminal Facial Hikvision:</span>
-              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                <ShieldCheck className="w-4 h-4" /> Acceso Físico Habilitado
+            <div className="flex justify-between border-t border-theme pt-2 font-mono-numbers">
+              <span className="text-muted-theme">Vigencia en Hardware:</span>
+              <span className="font-bold text-emerald-400">
+                {resultado.vigenciaDesde} al {resultado.vigenciaHasta} (23:59:59)
               </span>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>
+              {resultado.hardwareSincronizado
+                ? 'Vigencia inyectada con éxito en la memoria flash de la terminal. El torniquete bloqueará automáticamente al expirar la fecha sin requerir conexión al servidor.'
+                : `Nota de sincronización: ${resultado.hardwareError || 'Verifique conexión con el checador'}`}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2">
             <button
               onClick={() => window.print()}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border transition ${
-                isCyber
-                  ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
+              className="px-4 py-2 rounded-xl border border-theme bg-theme-subtle hover:bg-theme text-xs font-bold flex items-center gap-2 transition"
             >
               <Printer className="w-4 h-4" /> Imprimir Ticket
             </button>
             <button
               onClick={() => {
                 setResultado(null);
-                setSelectedSocioId('');
+                setSelectedPersonaId('');
               }}
-              className={`flex-1 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 ${
-                isCyber
-                  ? 'bg-volt hover:bg-volt-hover text-black shadow-volt-glow'
-                  : 'bg-sport-orange hover:bg-sport-orange-hover text-white shadow-orange-glow'
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition shadow ${
+                isCyber ? 'bg-volt text-black' : 'bg-sport-orange text-white'
               }`}
             >
-              <span>Nuevo Cobro</span>
-              <ArrowRight className="w-4 h-4" />
+              Nuevo Cobro
             </button>
           </div>
         </div>
       ) : (
-        <form
-          onSubmit={handleCobro}
-          className="bg-card-theme border border-theme card-shadow-theme rounded-2xl p-6 sm:p-7 space-y-6"
-        >
+        <form onSubmit={handleCobro} className="bg-card-theme border border-theme card-shadow-theme rounded-2xl p-6 space-y-5">
           {error && (
-            <div className="p-3.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs font-semibold">
-              {error}
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Seleccionar Socio */}
+          {/* 1. Selección de Persona */}
           <div>
-            <label className="block text-xs font-bold text-muted-theme uppercase tracking-wider mb-2">
-              1. Seleccionar Socio *
+            <label className="text-xs font-bold text-muted-theme block mb-1.5">
+              1. Seleccionar Socio / Cliente *
             </label>
             <select
-              value={selectedSocioId}
-              onChange={(e) => setSelectedSocioId(e.target.value)}
+              value={selectedPersonaId}
+              onChange={(e) => setSelectedPersonaId(e.target.value)}
               required
-              className={`w-full px-4 py-3 rounded-xl text-sm font-medium border transition focus:outline-none ${
-                isCyber
-                  ? 'bg-[#151922] border-slate-700/80 text-white focus:border-volt'
-                  : 'bg-white border-slate-200 text-slate-900 focus:border-sport-orange'
-              }`}
+              className="w-full px-3 py-2.5 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-accent-theme"
             >
-              <option value="">-- Buscar socio en padrón --</option>
-              {socios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre} — Tel: {s.telefono} ({s.estatus})
+              <option value="">-- Seleccionar socio --</option>
+              {personas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.codigo} - {p.nombre} {p.apellidos} ({p.telefono})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Seleccionar Plan */}
+          {/* 2. Selección de Plan */}
           <div>
-            <label className="block text-xs font-bold text-muted-theme uppercase tracking-wider mb-2">
-              2. Plan o Membresía *
+            <label className="text-xs font-bold text-muted-theme block mb-1.5">
+              2. Plan o Paquete a Renovar *
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {planes.map((p) => {
-                const isSelected = selectedPlanId === p.id.toString();
-                return (
-                  <button
-                    type="button"
-                    key={p.id}
-                    onClick={() => setSelectedPlanId(p.id.toString())}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                      isSelected
-                        ? isCyber
-                          ? 'border-volt bg-volt/10 text-white shadow-volt-glow'
-                          : 'border-sport-orange bg-sport-orange/10 text-slate-900 shadow-orange-glow'
-                        : 'border-theme bg-card-alt-theme text-main-theme hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-main-theme">{p.nombre}</span>
-                      {isSelected && <Sparkles className="w-3.5 h-3.5 text-accent-theme" />}
-                    </div>
-                    <div className="flex justify-between items-baseline mt-3">
-                      <span className="text-xs text-muted-theme font-medium">{p.duracion_dias} días</span>
-                      <span className="text-lg font-display font-black text-emerald-400 font-mono-numbers">
-                        ${p.precio.toFixed(2)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {planes.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedPlanId(p.id.toString())}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition ${
+                    selectedPlanId === p.id.toString()
+                      ? isCyber
+                        ? 'border-volt bg-volt/10 text-volt'
+                        : 'border-sport-orange bg-sport-orange/10 text-sport-orange'
+                      : 'border-theme bg-theme-subtle hover:border-accent-theme'
+                  }`}
+                >
+                  <div className="font-bold text-xs text-main-theme">{p.nombre}</div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="text-lg font-black font-mono-numbers text-main-theme">
+                      ${p.precio} MXN
+                    </span>
+                    <span className="text-[10px] text-muted-theme font-semibold">
+                      {p.duracion_dias} días
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Método de Pago */}
+          {/* 3. Método de Pago */}
           <div>
-            <label className="block text-xs font-bold text-muted-theme uppercase tracking-wider mb-2">
-              3. Forma de Pago *
+            <label className="text-xs font-bold text-muted-theme block mb-1.5">
+              3. Forma de Pago
             </label>
             <div className="grid grid-cols-3 gap-3">
-              {['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'].map((met) => {
-                const isSelected = metodoPago === met;
-                return (
-                  <button
-                    type="button"
-                    key={met}
-                    onClick={() => setMetodoPago(met as any)}
-                    className={`py-3 rounded-xl border text-xs font-bold transition-all ${
-                      isSelected
-                        ? isCyber
-                          ? 'border-volt bg-volt text-black shadow-volt-glow font-extrabold'
-                          : 'border-sport-orange bg-sport-orange text-white shadow-orange-glow font-extrabold'
-                        : 'border-theme bg-card-alt-theme text-muted-theme hover:text-main-theme'
-                    }`}
-                  >
-                    {met}
-                  </button>
-                );
-              })}
+              {[
+                { id: 'EFECTIVO', label: 'Efectivo' },
+                { id: 'TARJETA', label: 'Tarjeta' },
+                { id: 'TRANSFERENCIA', label: 'Transferencia' },
+              ].map((m) => (
+                <button
+                  type="button"
+                  key={m.id}
+                  onClick={() => setMetodoPago(m.id as any)}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition ${
+                    metodoPago === m.id
+                      ? isCyber ? 'bg-volt text-black border-volt' : 'bg-sport-orange text-white border-sport-orange'
+                      : 'border-theme bg-theme-subtle text-muted-theme hover:text-main-theme'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Resumen Total */}
-          <div className="p-5 bg-card-alt-theme rounded-xl border border-theme flex justify-between items-center">
-            <div>
-              <span className="text-xs font-bold text-muted-theme uppercase tracking-wider block">
-                Total a Cobrar
-              </span>
-              <span className="text-xs text-muted-theme">
-                {planSeleccionado ? `${planSeleccionado.duracion_dias} días de acceso` : 'Sin plan seleccionado'}
-              </span>
-            </div>
-            <span className="text-3xl font-display font-black text-emerald-400 font-mono-numbers">
-              ${planSeleccionado ? planSeleccionado.precio.toFixed(2) : '0.00'}
-            </span>
-          </div>
+          {/* Resumen Final y Botón */}
+          {planSeleccionado && (
+            <div className="pt-2 border-t border-theme">
+              <div className="flex items-center justify-between text-xs mb-4">
+                <span className="text-muted-theme">Total a cobrar:</span>
+                <span className="font-display font-black text-2xl text-accent-theme font-mono-numbers">
+                  ${planSeleccionado.precio} MXN
+                </span>
+              </div>
 
-          <button
-            type="submit"
-            disabled={procesando || !selectedSocioId || !selectedPlanId}
-            className={`w-full py-4 rounded-xl text-base font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 ${
-              isCyber
-                ? 'bg-volt hover:bg-volt-hover text-black shadow-volt-glow'
-                : 'bg-sport-orange hover:bg-sport-orange-hover text-white shadow-orange-glow'
-            }`}
-          >
-            <CreditCard className="w-5 h-5" />
-            <span>
-              {procesando ? 'Activando Acceso Facial en Hikvision...' : 'Cobrar & Habilitar Torniquete'}
-            </span>
-          </button>
+              <button
+                type="submit"
+                disabled={procesando}
+                className={`w-full py-3 rounded-xl font-bold text-sm transition shadow flex items-center justify-center gap-2 ${
+                  isCyber
+                    ? 'bg-volt text-black shadow-volt-glow hover:opacity-90'
+                    : 'bg-sport-orange text-white shadow-orange-glow hover:opacity-90'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{procesando ? 'Programando en Terminal...' : 'Cobrar y Activar Torniquete Inmediato'}</span>
+              </button>
+            </div>
+          )}
         </form>
       )}
     </div>

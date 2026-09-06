@@ -3,14 +3,12 @@ import { IHardwareDriver, HardwareTestResult } from './hardwareDriver.js';
 import { HikConnectTeamsDriver } from './hikconnectDriver.js';
 import { HikvisionIsapiDriver } from './hikvisionIsapi.js';
 import { HikCentralProDriver } from './hikcentralProDriver.js';
-import { MockHardwareDriver } from './mockDriver.js';
 
 export class HardwareManager {
   private static drivers: Map<string, IHardwareDriver> = new Map<string, IHardwareDriver>([
     ['HIKCONNECT_TEAMS', new HikConnectTeamsDriver()],
     ['HIKVISION_LOCAL_ISAPI', new HikvisionIsapiDriver()],
     ['HIKCENTRAL_PRO', new HikCentralProDriver()],
-    ['SIMULADO', new MockHardwareDriver()],
   ]);
 
   /**

@@ -1,16 +1,18 @@
 import cron from 'node-cron';
 import { db } from '../db/database.js';
 import { HardwareManager } from './hardwareManager.js';
+import { HikConnectService } from './hikconnect.js';
+import { AccessService } from '../modules/access/access.service.js';
+import { SseManager } from '../modules/access/sse.manager.js';
 
 export class SyncWorker {
   private static isRunning = false;
 
   /**
-   * Audita todos los socios:
-   * 1. Detecta socios con membresía vencida que aún tengan estatus VIGENTE.
-   * 2. Remueve su nivel de acceso en HikCentral Connect.
-   * 3. Actualiza el estatus local a VENCIDO.
-   * 4. Registra el evento en logs.
+   * Audita todas las personas con membresías vencidas:
+   * 1. Detecta personas cuya fecha de membresía expiró.
+   * 2. Se asegura de revocar el acceso en el hardware o marcar la vigencia como terminada.
+   * 3. Registra el evento en eventos_acceso.
    */
   public static async auditVigencias(): Promise<{ revocados: number; errores: number }> {
     if (this.isRunning) {
@@ -23,68 +25,38 @@ export class SyncWorker {
     let errores = 0;
 
     try {
-      // Fecha actual en formato YYYY-MM-DD
       const hoy = new Date().toISOString().split('T')[0];
 
-      // Buscar socios que figuran como VIGENTES pero cuya fecha_fin ya pasó
-      const sociosVencidos = db.prepare(`
-        SELECT s.id, s.nombre, s.hik_person_id, m.fecha_fin
-        FROM socios s
-        JOIN membresias m ON m.socio_id = s.id AND m.activa = 1
-        WHERE s.estatus = 'VIGENTE' AND m.fecha_fin < ?
-      `).all(hoy) as { id: number; nombre: string; hik_person_id: string; fecha_fin: string }[];
+      // Personas con membresía activa vencida
+      const vencidos = db.prepare(`
+        SELECT p.id, p.nombre, p.telefono, p.hik_person_id, m.id as membresia_id, m.fecha_fin
+        FROM personas p
+        JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
+        WHERE m.fecha_fin < ?
+      `).all(hoy) as any[];
 
-      if (sociosVencidos.length > 0) {
-        console.log(`🔍 Auditoría: detectados ${sociosVencidos.length} socios vencidos a revocar.`);
+      if (vencidos.length > 0) {
+        console.log(`🔍 Auditoría: detectadas ${vencidos.length} membresías vencidas a desactivar.`);
       }
 
-      for (const socio of sociosVencidos) {
+      for (const item of vencidos) {
         try {
-          if (socio.hik_person_id) {
-            // Revocar nivel de acceso en la terminal facial
-            await HardwareManager.setPersonAccess(socio.hik_person_id, false);
-          }
+          const empId = item.hik_person_id || item.telefono.replace(/\D/g, '').slice(-10) || String(item.id);
+          await HardwareManager.setPersonAccess(empId, false);
 
-          // Actualizar estatus local en transacción
-          try {
-            db.exec('BEGIN');
-            db.prepare(`UPDATE socios SET estatus = 'VENCIDO', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?`).run(socio.id);
-            db.prepare(`UPDATE membresias SET activa = 0 WHERE socio_id = ?`).run(socio.id);
-            db.prepare(`
-              INSERT INTO accesos_log (socio_id, socio_nombre, tipo_evento)
-              VALUES (?, ?, 'DENEGADO_VENCIDO')
-            `).run(socio.id, socio.nombre);
-            db.exec('COMMIT');
-          } catch (tErr) {
-            db.exec('ROLLBACK');
-            throw tErr;
-          }
+          db.exec('BEGIN');
+          db.prepare(`UPDATE gym_membresias SET activa = 0, estatus = 'VENCIDA' WHERE id = ?`).run(item.membresia_id);
+          db.prepare(`
+            INSERT INTO eventos_acceso (persona_id, persona_nombre, tipo_evento, metodo_autenticacion)
+            VALUES (?, ?, 'DENEGADO_VENCIDO', 'REMOTO_SOFTWARE')
+          `).run(item.id, item.nombre);
+          db.exec('COMMIT');
 
           revocados++;
-          console.log(`🚫 Acceso revocado a: ${socio.nombre} (Venció el ${socio.fecha_fin})`);
+          console.log(`🚫 Acceso revocado en hardware a: ${item.nombre} (Venció el ${item.fecha_fin})`);
         } catch (err: any) {
           errores++;
-          console.error(`❌ Error revocando acceso a ${socio.nombre}:`, err.message);
-        }
-      }
-
-      // Reconciliación inversa: si hay un socio marcado VENCIDO pero que tiene membresía futura vigente, corregir
-      const sociosConMembresiaFutura = db.prepare(`
-        SELECT s.id, s.nombre, s.hik_person_id, m.fecha_fin
-        FROM socios s
-        JOIN membresias m ON m.socio_id = s.id AND m.activa = 1
-        WHERE s.estatus != 'VIGENTE' AND m.fecha_fin >= ?
-      `).all(hoy) as { id: number; nombre: string; hik_person_id: string; fecha_fin: string }[];
-
-      for (const socio of sociosConMembresiaFutura) {
-        try {
-          if (socio.hik_person_id) {
-            await HardwareManager.setPersonAccess(socio.hik_person_id, true);
-          }
-          db.prepare(`UPDATE socios SET estatus = 'VIGENTE', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?`).run(socio.id);
-          console.log(`✅ Acceso reactivado en reconciliación para: ${socio.nombre}`);
-        } catch (err: any) {
-          console.error(`❌ Error reactivando socio ${socio.nombre}:`, err.message);
+          console.error(`❌ Error revocando acceso a ${item.nombre}:`, err.message);
         }
       }
 
@@ -98,28 +70,92 @@ export class SyncWorker {
   }
 
   /**
-   * Inicia el demonio de fondo:
-   * - Corre inmediatamente al arrancar la aplicación (Startup Catch-up)
-   * - Corre cada hora en el minuto 0
-   * - Corre a la medianoche (00:00:05)
+   * Monitor de estado y presencia de dispositivos físicos en vivo.
+   * Consulta periódicamente el estado de conexión real de los equipos en la nube/red
+   * y transmite los cambios por SSE para actualizar los LEDs del Navbar y CuentasHct.
+   */
+  public static async pollHardwareHealth(): Promise<void> {
+    try {
+      const dispositivos = db.prepare('SELECT * FROM dispositivos WHERE activa = 1').all() as any[];
+      if (dispositivos.length === 0) {
+        const summary = AccessService.getHardwareHealthSummary();
+        SseManager.broadcastStatus(summary);
+        return;
+      }
+
+      // Agrupar dispositivos HIKCONNECT_TEAMS por cuenta_hct_id
+      const cuentasMap = new Map<number, any[]>();
+      for (const d of dispositivos) {
+        if (d.driver === 'HIKCONNECT_TEAMS') {
+          const cuentaId = d.cuenta_hct_id || 0;
+          if (!cuentasMap.has(cuentaId)) {
+            cuentasMap.set(cuentaId, []);
+          }
+          cuentasMap.get(cuentaId)!.push(d);
+        }
+      }
+
+      for (const [cuentaId, devs] of cuentasMap.entries()) {
+        try {
+          const cloudDevices = await HikConnectService.getDevices(cuentaId || undefined);
+          for (const d of devs) {
+            const match = cloudDevices.find((cd: any) => (cd.serialNo === d.cloud_serial || cd.deviceSerial === d.cloud_serial));
+            const isOnline = match ? (match.onlineStatus === 1) : false;
+            const nuevoEstado = isOnline ? 'ONLINE' : 'OFFLINE';
+
+            if (d.estado_conexion !== nuevoEstado) {
+              db.prepare('UPDATE dispositivos SET estado_conexion = ?, ultimo_ping = CURRENT_TIMESTAMP WHERE id = ?').run(
+                nuevoEstado,
+                d.id
+              );
+              console.log(`📡 [Heartbeat] Dispositivo "${d.nombre}" (${d.cloud_serial}) cambió a: ${nuevoEstado}`);
+            } else {
+              db.prepare('UPDATE dispositivos SET ultimo_ping = CURRENT_TIMESTAMP WHERE id = ?').run(d.id);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`⚠️ [Heartbeat] Fallo consultando dispositivos de cuenta ${cuentaId}:`, err.message);
+        }
+      }
+
+      // Transmitir resumen de salud por SSE a todos los clientes web
+      const summary = AccessService.getHardwareHealthSummary();
+      SseManager.broadcastStatus(summary);
+    } catch (err: any) {
+      console.error('❌ Error en sondeo de hardware health:', err.message);
+    }
+  }
+
+  /**
+   * Demonio de fondo con Startup Catch-up, tarea horaria, sondeo de hardware y tarea nocturna
    */
   public static startDaemon() {
-    console.log('⏰ Iniciando demonio de auditoría de vigencias...');
+    console.log('⏰ Iniciando demonio de auditoría, sincronización de vigencias y latidos de hardware...');
     
-    // 1. Startup Catch-up inmediato
+    // 1. Startup Catch-up de vigencias (3 segundos tras arranque)
     setTimeout(() => {
       this.auditVigencias().catch(err => console.error('Error en Startup Catch-up:', err));
     }, 3000);
 
-    // 2. Tarea cada hora
+    // 2. Primer sondeo de salud de hardware (4 segundos tras arranque)
+    setTimeout(() => {
+      this.pollHardwareHealth().catch(err => console.error('Error en sondeo inicial de hardware:', err));
+    }, 4000);
+
+    // 3. Sondeo periódico de presencia de hardware (cada 45 segundos)
+    setInterval(() => {
+      this.pollHardwareHealth().catch(err => console.error('Error en sondeo periódico de hardware:', err));
+    }, 45000);
+
+    // 4. Tarea horaria de auditoría de vigencias
     cron.schedule('0 * * * *', () => {
       this.auditVigencias().catch(err => console.error('Error en auditoría horaria:', err));
     });
 
-    // 3. Tarea estricta de medianoche (tolerancia cero a las 00:00:05)
+    // 5. Tarea estricta de medianoche (00:00:05)
     cron.schedule('5 0 0 * * *', () => {
-      console.log('🌙 Disparando auditoría nocturna de medianoche (Tolerancia Cero)...');
-      this.auditVigencias().catch(err => console.error('Error en auditoría de medianoche:', err));
+      console.log('🌙 Disparando auditoría nocturna de medianoche...');
+      this.auditVigencias().catch(err => console.error('Error en auditoría nocturna:', err));
     });
   }
 }

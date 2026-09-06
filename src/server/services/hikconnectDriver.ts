@@ -10,7 +10,7 @@ export class HikConnectTeamsDriver implements IHardwareDriver {
 
   public async testConnection(): Promise<HardwareTestResult> {
     try {
-      await HikConnectService.getAccessToken(true);
+      await HikConnectService.getAccessToken(undefined, true);
       const devices = await HikConnectService.getDevices();
       const levels = await HikConnectService.getAccessLevels();
 
@@ -58,7 +58,8 @@ export class HikConnectTeamsDriver implements IHardwareDriver {
   }
 
   public async remoteControlDoor(doorId: string, controlType: 'open' | 'close' = 'open'): Promise<boolean> {
-    return HikConnectService.remoteControlDoor(doorId, controlType);
+    const res = await HikConnectService.remoteControlDoor(doorId, controlType === 'open' ? 1 : 2);
+    return res.success;
   }
 
   public async getDevices(): Promise<any[]> {

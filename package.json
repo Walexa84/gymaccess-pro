@@ -1,7 +1,7 @@
 {
   "name": "gymaccess-pro",
-  "version": "1.0.0",
-  "description": "Sistema Local de Gesti\u00f3n de Gimnasios y Control Biom\u00e9trico Hikvision",
+  "version": "0.5.0",
+  "description": "Sistema Local de Gestión de Gimnasios y Control Biométrico Hikvision",
   "type": "module",
   "scripts": {
     "dev:server": "tsx watch src/server/index.ts",
