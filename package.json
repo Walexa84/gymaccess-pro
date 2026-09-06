@@ -1,6 +1,6 @@
 {
   "name": "gymaccess-pro",
-  "version": "0.5.0",
+  "version": "0.6.0-dev",
   "description": "Sistema Local de Gestión de Gimnasios y Control Biométrico Hikvision",
   "type": "module",
   "scripts": {
