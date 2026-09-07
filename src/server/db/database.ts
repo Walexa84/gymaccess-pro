@@ -14,12 +14,50 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-export const db = new DatabaseSync(DB_PATH);
+export let db = new DatabaseSync(DB_PATH);
 
 // Configuración de SQLite: WAL Mode y Foreign Keys
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA synchronous = NORMAL;');
+
+/**
+ * Restaura la base de datos atómicamente a partir de un archivo .db de respaldo
+ */
+export function restoreDatabaseFromBackup(backupFilePath: string): void {
+  if (!fs.existsSync(backupFilePath)) {
+    throw new Error(`El archivo de respaldo no existe: ${backupFilePath}`);
+  }
+
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+  } catch (e) {
+    console.warn('Advertencia en wal_checkpoint:', e);
+  }
+
+  // Cerrar conexión activa para liberar handles de archivos en Windows
+  db.close();
+
+  const walPath = `${DB_PATH}-wal`;
+  const shmPath = `${DB_PATH}-shm`;
+  if (fs.existsSync(walPath)) {
+    try { fs.unlinkSync(walPath); } catch {}
+  }
+  if (fs.existsSync(shmPath)) {
+    try { fs.unlinkSync(shmPath); } catch {}
+  }
+
+  // Copiar archivo de respaldo sobre la base de datos viva
+  fs.copyFileSync(backupFilePath, DB_PATH);
+
+  // Reinstanciar la conexión SQLite con su configuración de resiliencia
+  db = new DatabaseSync(DB_PATH);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+  db.exec('PRAGMA synchronous = NORMAL;');
+
+  console.log(`✅ Base de datos restaurada atómicamente desde ${backupFilePath}`);
+}
 
 // Inicializar esquema y migraciones
 export function initDatabase() {
@@ -34,6 +72,41 @@ export function initDatabase() {
   try { db.exec(`ALTER TABLE dispositivos ADD COLUMN cuenta_hct_id INTEGER REFERENCES cuentas_hct(id) ON DELETE SET NULL;`); } catch {}
   try { db.exec(`ALTER TABLE torniquetes ADD COLUMN cloud_resource_id TEXT;`); } catch {}
   try { db.exec(`ALTER TABLE niveles_acceso ADD COLUMN cuenta_hct_id INTEGER REFERENCES cuentas_hct(id) ON DELETE SET NULL;`); } catch {}
+
+  // Migración segura: hacer telefono opcional en personas si aún tiene NOT NULL
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(personas)").all() as Array<{ name: string; notnull: number }>;
+    const telCol = tableInfo.find(c => c.name === 'telefono');
+    if (telCol && telCol.notnull === 1) {
+      console.log('🔄 Aplicando migración SQLite: haciendo personas.telefono opcional...');
+      db.exec('PRAGMA foreign_keys = OFF;');
+      db.exec(`
+        CREATE TABLE personas_temp (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codigo TEXT UNIQUE NOT NULL,
+          nombre TEXT NOT NULL,
+          apellidos TEXT DEFAULT '',
+          telefono TEXT,
+          email TEXT,
+          foto_url TEXT,
+          tipo TEXT CHECK(tipo IN ('SOCIO', 'EMPLEADO', 'VISITANTE', 'PROVEEDOR')) DEFAULT 'SOCIO',
+          notas TEXT,
+          hik_person_id TEXT UNIQUE,
+          activo INTEGER DEFAULT 1,
+          creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+          actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO personas_temp SELECT id, codigo, nombre, apellidos, telefono, email, foto_url, tipo, notas, hik_person_id, activo, creado_en, actualizado_en FROM personas;
+        DROP TABLE personas;
+        ALTER TABLE personas_temp RENAME TO personas;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_personas_telefono_unique ON personas(telefono) WHERE telefono IS NOT NULL AND telefono != '';
+      `);
+      db.exec('PRAGMA foreign_keys = ON;');
+      console.log('✅ Migración de personas.telefono completada.');
+    }
+  } catch (mErr) {
+    console.warn('Advertencia en migración personas.telefono:', mErr);
+  }
 
   // Inicializar configuración base si no existe
   const initConfig = db.prepare(`

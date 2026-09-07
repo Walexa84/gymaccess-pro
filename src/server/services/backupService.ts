@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { db } from '../db/database.js';
+import { db, restoreDatabaseFromBackup } from '../db/database.js';
 
 export class BackupService {
   /**
@@ -58,5 +58,36 @@ export class BackupService {
         };
       })
       .sort((a, b) => b.creadoEn.getTime() - a.creadoEn.getTime());
+  }
+
+  /**
+   * Obtiene la ruta física y valida que el archivo exista sin riesgos de path traversal
+   */
+  public static getBackupFilePath(filename: string): string {
+    if (!/^gym_backup_[\w\-]+\.db$/.test(filename)) {
+      throw new Error('Nombre de archivo de respaldo no válido o sospechoso.');
+    }
+
+    const row = db.prepare('SELECT valor FROM configuracion WHERE clave = ?').get('backup_ruta') as { valor: string } | undefined;
+    const backupDir = row?.valor ? row.valor : path.resolve(process.cwd(), 'backups');
+    const fullPath = path.join(backupDir, filename);
+
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`El archivo de respaldo ${filename} no fue encontrado en el disco.`);
+    }
+
+    return fullPath;
+  }
+
+  /**
+   * Restaura la base de datos a partir de una copia específica
+   */
+  public static async restoreBackup(filename: string): Promise<{ success: boolean; message: string }> {
+    const fullPath = this.getBackupFilePath(filename);
+    restoreDatabaseFromBackup(fullPath);
+    return {
+      success: true,
+      message: `Base de datos restaurada exitosamente con la copia ${filename}`,
+    };
   }
 }

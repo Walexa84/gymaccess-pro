@@ -19,7 +19,7 @@ export interface EnrollPersonInput {
   codigo?: string;
   nombre: string;
   apellidos?: string;
-  telefono: string;
+  telefono?: string;
   email?: string;
   tipo: 'SOCIO' | 'EMPLEADO' | 'VISITANTE';
   sucursalId?: number;
@@ -323,13 +323,16 @@ export class TeamsPersonService {
    * 2. Inyecta a Teams en vivo con su foto y los niveles de acceso seleccionados.
    */
   public static async enrollPersonWithAccess(input: EnrollPersonInput) {
-    if (!input.nombre || !input.telefono) {
-      throw new Error('Nombre y teléfono son obligatorios');
+    if (!input.nombre || !input.nombre.trim()) {
+      throw new Error('El nombre de la persona es obligatorio');
     }
 
-    const existingPhone = db.prepare('SELECT id FROM personas WHERE telefono = ? AND activo = 1').get(input.telefono.trim());
-    if (existingPhone) {
-      throw new Error(`Ya existe una persona registrada con el teléfono ${input.telefono}`);
+    const cleanPhone = input.telefono?.trim() || null;
+    if (cleanPhone) {
+      const existingPhone = db.prepare('SELECT id FROM personas WHERE telefono = ? AND activo = 1').get(cleanPhone);
+      if (existingPhone) {
+        throw new Error(`Ya existe una persona registrada con el teléfono ${cleanPhone}`);
+      }
     }
 
     let localPhotoUrl: string | null = null;
@@ -363,7 +366,7 @@ export class TeamsPersonService {
         codigo,
         input.nombre.trim(),
         (input.apellidos || '').trim(),
-        input.telefono.trim(),
+        cleanPhone,
         input.email?.trim() || null,
         localPhotoUrl,
         input.tipo || 'SOCIO'
@@ -385,19 +388,23 @@ export class TeamsPersonService {
       if (input.tipo === 'SOCIO' && input.planId) {
         const plan = db.prepare('SELECT * FROM gym_planes WHERE id = ?').get(input.planId) as any;
         const dias = plan?.duracion_dias || input.vigenciaDias || 30;
-
-        if (dias === 1) {
-          // Pase Diario: vence hoy mismo al cierre (23:59:59)
-          fechaFin.setHours(23, 59, 59, 999);
-        } else {
-          fechaFin.setDate(hoy.getDate() + dias);
-          fechaFin.setHours(23, 59, 59, 999);
-        }
-
+        if (dias === 1) fechaFin.setHours(23, 59, 59, 999);
+        else { fechaFin.setDate(hoy.getDate() + dias); fechaFin.setHours(23, 59, 59, 999); }
         db.prepare(`
           INSERT INTO gym_membresias (persona_id, plan_id, fecha_inicio, fecha_fin, estatus, activa)
           VALUES (?, ?, ?, ?, 'VIGENTE', 1)
         `).run(newPersonaId, input.planId, hoy.toISOString().split('T')[0], fechaFin.toISOString().split('T')[0]);
+      } else if (input.tipo === 'VISITANTE') {
+        const { CortesiasService } = await import('./cortesias.service.js');
+        if (input.telefono && input.telefono.trim()) {
+          const telUsadas = CortesiasService.contarCortesiasPorTelefono(input.telefono.trim());
+          if (telUsadas >= 3) {
+            throw new Error(`El teléfono ${input.telefono} ya cuenta con 3 pases de cortesía registrados. Para ingresar debe adquirir una membresía.`);
+          }
+        }
+        fechaFin.setHours(23, 59, 59, 999);
+        const cortesiaPlanId = CortesiasService.getPlanCortesiaId();
+        db.prepare(`INSERT INTO gym_membresias (persona_id, plan_id, fecha_inicio, fecha_fin, estatus, activa) VALUES (?, ?, ?, ?, 'VIGENTE', 1)`).run(newPersonaId, cortesiaPlanId, hoy.toISOString().split('T')[0], fechaFin.toISOString().split('T')[0]);
       } else {
         // Staff o Empleado: vigencia a 1 año
         fechaFin.setDate(hoy.getDate() + (input.vigenciaDias || 365));
@@ -412,12 +419,7 @@ export class TeamsPersonService {
       if (Array.isArray(input.nivelIds) && input.nivelIds.length > 0) {
         // Consultar los niveles de acceso seleccionados
         const placeholders = input.nivelIds.map(() => '?').join(',');
-        const niveles = db.prepare(`
-          SELECT n.id, n.nombre, n.cloud_level_id, n.cuenta_hct_id, c.nombre as cuenta_nombre, c.base_url
-          FROM niveles_acceso n
-          JOIN cuentas_hct c ON c.id = n.cuenta_hct_id
-          WHERE n.id IN (${placeholders}) AND n.activo = 1
-        `).all(...input.nivelIds) as any[];
+        const niveles = db.prepare(`SELECT n.id, n.nombre, n.cloud_level_id, n.cuenta_hct_id, c.nombre as cuenta_nombre, c.base_url FROM niveles_acceso n JOIN cuentas_hct c ON c.id = n.cuenta_hct_id WHERE n.id IN (${placeholders}) AND n.activo = 1`).all(...input.nivelIds) as any[];
 
         // Agrupar por cuenta de Teams
         const byCuenta = new Map<number, any[]>();
@@ -451,7 +453,7 @@ export class TeamsPersonService {
                 lastName: safeLastName,
                 gender: 1,
                 groupId: '684236911358785536',
-                phoneNo: input.telefono.trim(),
+                phoneNo: input.telefono?.trim() || undefined,
                 startDate: startDateIso,
                 endDate: endDateIso,
               }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity, ArrowUpRight, ArrowDownLeft, ShieldCheck, AlertTriangle, XCircle,
-  Users, DoorOpen, Clock, RefreshCw, UserCheck, CheckCircle2
+  Users, DoorOpen, Clock, RefreshCw, UserCheck, CheckCircle2, Unlock
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useBranding } from '../context/BrandingContext';
 
 interface LiveEvent {
   id?: number;
@@ -21,6 +22,7 @@ interface LiveEvent {
 
 export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ onNavigateCobro }) => {
   const { theme } = useTheme();
+  const { playSound } = useBranding();
   const isCyber = theme === 'cyber';
 
   const [eventos, setEventos] = useState<LiveEvent[]>([]);
@@ -36,14 +38,20 @@ export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ 
     aforoActual: 0,
   });
   const [abriendoId, setAbriendoId] = useState<number | null>(null);
+  const [refrescando, setRefrescando] = useState(false);
 
-  const cargarDatosIniciales = () => {
-    fetch('/api/gym/stats').then(r => r.json()).then(setStats).catch(() => {});
-    fetch('/api/access/torniquetes').then(r => r.json()).then(setTorniquetes).catch(() => {});
-    fetch('/api/access/eventos?limit=15')
-      .then(r => r.json())
-      .then(data => {
-        const mapped = data.map((e: any) => ({
+  const cargarDatosIniciales = async () => {
+    setRefrescando(true);
+    try {
+      const [statsRes, tornRes, evRes] = await Promise.all([
+        fetch('/api/gym/stats').then(r => r.json()).catch(() => null),
+        fetch('/api/access/torniquetes').then(r => r.json()).catch(() => null),
+        fetch('/api/access/eventos?limit=15').then(r => r.json()).catch(() => null),
+      ]);
+      if (statsRes) setStats(statsRes);
+      if (tornRes) setTorniquetes(tornRes);
+      if (evRes && Array.isArray(evRes)) {
+        const mapped = evRes.map((e: any) => ({
           id: e.id,
           personaId: e.persona_id,
           personaNombre: e.persona_nombre,
@@ -56,8 +64,10 @@ export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ 
         }));
         setEventos(mapped);
         if (mapped.length > 0) setUltimoEvento(mapped[0]);
-      })
-      .catch(() => {});
+      }
+    } finally {
+      setTimeout(() => setRefrescando(false), 350);
+    }
   };
 
   // Conexión Server-Sent Events (SSE) para recepción de eventos en tiempo real (<100ms)
@@ -86,6 +96,13 @@ export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ 
 
           setUltimoEvento(nuevo);
           setEventos(prev => [nuevo, ...prev.slice(0, 14)]);
+
+          // Feedback auditivo según resultado del acceso
+          if (nuevo.tipoEvento === 'CONCEDIDO') {
+            playSound('granted');
+          } else if (nuevo.tipoEvento.startsWith('DENEGADO') || nuevo.tipoEvento === 'ERROR') {
+            playSound('denied');
+          }
 
           // Actualizar métricas
           fetch('/api/gym/stats').then(r => r.json()).then(setStats).catch(() => {});
@@ -125,10 +142,10 @@ export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ 
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Tarjeta de Aforo Actual */}
           <div className="px-4 py-2 rounded-2xl bg-theme-subtle border border-theme flex items-center gap-3">
-            <Users className="w-5 h-5 text-accent-theme" />
+            <Users className="w-5 h-5 text-accent-theme shrink-0" />
             <div>
               <div className="text-[10px] uppercase font-bold text-muted-theme">Aforo en Sala</div>
               <div className="text-lg font-black font-mono-numbers text-main-theme leading-none">
@@ -137,12 +154,29 @@ export const Monitor: React.FC<{ onNavigateCobro?: (socio: any) => void }> = ({ 
             </div>
           </div>
 
+          {/* Tarjeta de Aperturas Manuales Hoy */}
+          <div className="px-4 py-2 rounded-2xl bg-theme-subtle border border-theme flex items-center gap-3">
+            <Unlock className="w-5 h-5 text-purple-400 shrink-0" />
+            <div>
+              <div className="text-[10px] uppercase font-bold text-muted-theme">Aperturas Manuales</div>
+              <div className="text-lg font-black font-mono-numbers text-main-theme leading-none flex items-baseline gap-1.5">
+                <span>{stats.aperturasManualesHoy || 0}</span>
+                {Number(stats.aperturasManualesHoy) > 0 && (
+                  <span className="text-[10px] font-normal text-muted-theme font-sans">
+                    ({stats.operadoresAperturaHoy || 'Recepción'})
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           <button
             onClick={cargarDatosIniciales}
-            className="p-2.5 rounded-xl border border-theme bg-theme-subtle hover:text-accent-theme transition"
-            title="Refrescar datos"
+            disabled={refrescando}
+            className="p-2.5 rounded-xl border border-theme bg-theme-subtle hover:text-accent-theme transition flex items-center justify-center disabled:opacity-75"
+            title="Refrescar métricas y accesos en vivo"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${refrescando ? 'animate-spin text-accent-theme' : ''}`} />
           </button>
         </div>
       </div>

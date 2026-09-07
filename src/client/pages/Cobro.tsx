@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, CheckCircle2, ShieldCheck, Printer, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useBranding } from '../context/BrandingContext';
 
 export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioPreload }) => {
   const [planes, setPlanes] = useState<any[]>([]);
@@ -13,6 +14,7 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
   const [error, setError] = useState('');
 
   const { theme } = useTheme();
+  const { branding } = useBranding();
   const isCyber = theme === 'cyber';
 
   useEffect(() => {
@@ -102,7 +104,21 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
           </div>
 
           <div className="p-4 rounded-xl bg-theme-subtle border border-theme text-xs space-y-2">
-            <div className="flex justify-between">
+            {/* Membrete Oficial del Gimnasio */}
+            <div className="text-center pb-2.5 border-b border-theme space-y-0.5">
+              {branding.gym_logo_url && (
+                <img src={branding.gym_logo_url} alt="" className="h-10 mx-auto object-contain mb-1" />
+              )}
+              <h4 className="font-bold text-sm text-main-theme">{branding.gym_nombre || 'AccessCore Gym'}</h4>
+              {branding.gym_slogan && <p className="text-[11px] text-muted-theme italic">{branding.gym_slogan}</p>}
+              <div className="text-[10px] text-muted-theme flex items-center justify-center gap-2 flex-wrap">
+                {branding.gym_address && <span>{branding.gym_address}</span>}
+                {branding.gym_phone && <span>• Tel: {branding.gym_phone}</span>}
+                {branding.gym_rfc && <span>• RFC: {branding.gym_rfc}</span>}
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-1">
               <span className="text-muted-theme">Socio / Cliente:</span>
               <span className="font-bold text-main-theme">{resultado.persona}</span>
             </div>
@@ -124,6 +140,13 @@ export const Cobro: React.FC<{ selectedSocioPreload?: any }> = ({ selectedSocioP
                 {resultado.vigenciaDesde} al {resultado.vigenciaHasta} (23:59:59)
               </span>
             </div>
+
+            {/* Pie de Ticket con Políticas */}
+            {branding.gym_ticket_footer && (
+              <div className="pt-2 border-t border-theme text-center text-[10px] text-muted-theme italic">
+                {branding.gym_ticket_footer}
+              </div>
+            )}
           </div>
 
           <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">

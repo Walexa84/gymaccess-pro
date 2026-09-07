@@ -19,19 +19,21 @@
   1. **🔴 Riesgo o Problema en Cristiano:** Explicación clara con analogía o ejemplo cotidiano de qué va a fallar y por qué.
   2. **📚 La Mejor Práctica de la Industria:** Qué estándar o solución limpia se aplica y por qué es la vía correcta.
   3. **🟢 Plan Paso a Paso:** La propuesta concreta explicada de forma sencilla, esperando confirmación antes de ejecutar.
+- **Prohibición Total de Parches de Conveniencia:** Queda estrictamente prohibido proponer o aplicar parches rápidos, alias en el servidor o atajos que maquillen un error en lugar de solucionar la causa raíz en su archivo de origen.
 - **Candado de Ejecución Inviolable:** Ningún archivo puede ser modificado, creado o borrado sin previa explicación clara y confirmación explícita del usuario.
 
 ### 2. Uso Obligatorio y Proactivo de Tencent Memory (MCP) en CADA Interacción
 En **cada turno de trabajo**, el asistente debe consultar proactivamente el motor de Tencent Memory adecuado antes de responder, y registrar el resultado al concluir:
 
-| Si la tarea actual involucra... | Función / Herramienta MCP obligatoria | Endpoint Local |
+| Si la tarea actual involucra... | Función / Herramienta MCP obligatoria | Endpoint / ID Oficial |
 | :--- | :--- | :--- |
 | **Inicio de tarea, contexto general o preferencias** | `memory_search` (Recupera recuerdos L0–L3 y decisiones pasadas de Mario) | `http://127.0.0.1:8420` |
-| **Reglas de negocio, manuales o documentación técnica** | `wiki_search` / `wiki_read` (Consulta RAG documental) | `http://127.0.0.1:8421` |
-| **Refactoring, dependencias de código o impacto de cambios** | `code_search` / `code_impact` / `code_callers` (Grafo AST) | `http://127.0.0.1:8421` |
+| **Reglas de negocio, manuales o documentación técnica** | `wiki_search` / `wiki_read` (Consulta RAG documental) | `http://127.0.0.1:8421`<br>• GYMS: `wiki-f7hg38ja`<br>• Directivas: `wiki-1ktq6sk0` |
+| **Refactoring, dependencias de código o impacto de cambios** | `code_search` / `code_impact` / `code_callers` (Grafo AST) | `http://127.0.0.1:8421`<br>• CodeGraph: `cg-kj01r9f1` |
 | **Cierre de tarea, resolución de bugs o acuerdos técnicos** | `memory_add` (Registra inmediatamente la decisión en SQLite) | `http://127.0.0.1:8420` |
 
 - **Seguridad:** NUNCA almacenar secretos, tokens, contraseñas ni PII en la base de datos de memoria.
+- **Identificadores Fijos:** Usar siempre `wiki_id: "wiki-f7hg38ja"` y `code_graph_id: "cg-kj01r9f1"` en llamadas MCP.
 - **Fallback:** Si el servicio local está apagado, reporta `[⚠️ mem: offline]` y continúa sin bloquear la asistencia.
 
 ---
@@ -88,6 +90,7 @@ Orden de resolución:
 
 ### §7. Arquitectura y Resiliencia
 - Separar capas: Controlador ➔ Servicio ➔ Repositorio/BD.
+- **Principio Fail-Fast y SSOT (Fuente Única de Verdad):** El backend es la autoridad absoluta de las rutas y modelos. Toda petición no coincidente con el contrato oficial debe ser rechazada de inmediato (`404 Not Found` / `400 Bad Request`). **Queda TERMINANTEMENTE PROHIBIDO modificar el backend para acomodar errores tipográficos o de contrato cometidos en el frontend** (e.g. crear alias de rutas, duplicar endpoints o admitir parámetros erróneos para 'hacer que funcione'). La corrección debe realizarse única y exclusivamente en el cliente emisor donde se originó el error.
 - Manejo de errores semántico (mensaje amigable al usuario + log técnico).
 - Prevención estricta de consultas N+1 en bases de datos.
 - Políticas Zero Trust / RLS en seguridad.
@@ -96,6 +99,7 @@ Orden de resolución:
 ### §8. Patrones y Tipado Estricto
 - Separar estrictamente lógica de negocio de la UI.
 - Validar todos los datos de entrada/salida mediante esquemas tipados (e.g. Zod, Pydantic).
+- **Prohibición de "Strings Mágicos" en Rutas de Red:** Las URLs de endpoints y nombres de rutas no deben escribirse como cadenas de texto libre repetidas de memoria entre comillas en los componentes. Deben centralizarse en constantes o diccionarios tipados para que el compilador alerte cualquier discrepancia antes de ejecutar.
 - Prohibidos: *God Objects*, *Big Ball of Mud* y optimización prematura.
 
 ### §9. Loop Safety (Doble Fallo)
@@ -125,6 +129,7 @@ Orden de resolución:
 ### §14. Auditoría UX y Navegación
 - Navegación visual ≠ Funcionalidad implementada.
 - No crear componentes "cascarón" sin lógica real conectada.
+- **Auditoría de Poblado de Datos (Anti-Cascarón):** Todo formulario, modal o menú desplegable (`<select>`, combo boxes, tablas dependientes) que consuma datos de una API DEBE auditarse con datos reales en vivo para comprobar que las opciones se pueblan y seleccionan efectivamente, no solo que el contenedor abra visualmente.
 
 ### §15. Anti-Bloat y Limpieza
 - Eliminar código muerto y dependencias no utilizadas.
@@ -152,7 +157,7 @@ La ejecución de requerimientos en vía completa se rige por la junta técnica m
 - Cumplimiento de PII / GDPR en datos de usuario.
 
 ### §20. Definición de "Done" (DoD)
-Una tarea solo finaliza (`[✅ Done]`) si compila sin errores, pasa tests, cumple accesibilidad básica (a11y), i18n, errores semánticos, documentación y manual de usuario actualizados.
+Una tarea solo finaliza (`[✅ Done]`) si compila sin errores, pasa tests, cumple accesibilidad básica (a11y), i18n, errores semánticos, documentación y manual de usuario actualizados, y verificación funcional completa en vivo (ningún modal o selector puede cerrarse con listas vacías o fallas silenciosas de red).
 
 ### §21. Protocolo de Memoria Local
 - Usar herramientas MCP `memory_search` y `memory_add`.

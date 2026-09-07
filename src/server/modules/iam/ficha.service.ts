@@ -445,9 +445,7 @@ export class FichaService {
     if (!nombre) {
       throw new Error('El nombre de la persona es obligatorio');
     }
-    if (!telefono) {
-      throw new Error('El teléfono es obligatorio');
-    }
+    const telefonoFinal = telefono || null;
 
     if (codigo) {
       if (/[^a-zA-Z0-9]/.test(codigo)) {
@@ -464,11 +462,13 @@ export class FichaService {
       }
     }
 
+    const codigoFinal = persona.hik_person_id ? persona.codigo : codigo;
+
     db.prepare(`
       UPDATE personas 
       SET codigo = ?, nombre = ?, apellidos = ?, telefono = ?, email = ?, actualizado_en = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(codigo, nombre, apellidos, telefono, email, personaId);
+    `).run(codigoFinal, nombre, apellidos, telefonoFinal, email, personaId);
 
     let teamsSynced = false;
     let teamsError: string | null = null;

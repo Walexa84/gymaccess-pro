@@ -5,7 +5,7 @@ import { db } from '../../db/database.js';
 export interface PersonaInput {
   nombre: string;
   apellidos?: string;
-  telefono: string;
+  telefono?: string;
   email?: string;
   tipo?: 'SOCIO' | 'EMPLEADO' | 'VISITANTE' | 'PROVEEDOR';
   notas?: string;
@@ -22,7 +22,8 @@ export class IamService {
         p.*,
         m.fecha_fin as vigencia_fin,
         m.estatus as membresia_estatus,
-        gp.nombre as plan_nombre
+        gp.nombre as plan_nombre,
+        (SELECT COUNT(*) FROM gym_membresias cm JOIN gym_planes cp ON cp.id = cm.plan_id WHERE cm.persona_id = p.id AND (cp.nombre LIKE '%Cortesía%' OR cp.precio = 0)) as cortesias_usadas
       FROM personas p
       LEFT JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
       LEFT JOIN gym_planes gp ON gp.id = m.plan_id
@@ -39,8 +40,12 @@ export class IamService {
     }
 
     if (tipo && tipo !== 'TODOS') {
-      sql += ' AND p.tipo = ?';
-      params.push(tipo);
+      if (tipo === 'VISITANTE' || tipo === 'CORTESIA' || tipo === 'CORTESIAS') {
+        sql += ` AND (p.tipo = 'VISITANTE' OR gp.nombre LIKE '%Cortesía%' OR (m.activa = 1 AND gp.precio = 0))`;
+      } else {
+        sql += ' AND p.tipo = ?';
+        params.push(tipo);
+      }
     }
 
     if (q) {
@@ -62,7 +67,8 @@ export class IamService {
         m.fecha_fin as vigencia_fin,
         m.estatus as membresia_estatus,
         gp.nombre as plan_nombre,
-        gp.id as plan_id
+        gp.id as plan_id,
+        (SELECT COUNT(*) FROM gym_membresias cm JOIN gym_planes cp ON cp.id = cm.plan_id WHERE cm.persona_id = p.id AND (cp.nombre LIKE '%Cortesía%' OR cp.precio = 0)) as cortesias_usadas
       FROM personas p
       LEFT JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
       LEFT JOIN gym_planes gp ON gp.id = m.plan_id
@@ -104,13 +110,16 @@ export class IamService {
    * Crear nueva persona en el directorio central
    */
   public static createPersona(data: PersonaInput) {
-    if (!data.nombre || !data.telefono) {
-      throw new Error('Nombre y teléfono son campos obligatorios');
+    if (!data.nombre || !data.nombre.trim()) {
+      throw new Error('El nombre de la persona es obligatorio');
     }
 
-    const existing = db.prepare('SELECT id FROM personas WHERE telefono = ? AND activo = 1').get(data.telefono);
-    if (existing) {
-      throw new Error(`Ya existe una persona registrada con el teléfono ${data.telefono}`);
+    const cleanPhone = data.telefono?.trim() || null;
+    if (cleanPhone) {
+      const existing = db.prepare('SELECT id FROM personas WHERE telefono = ? AND activo = 1').get(cleanPhone);
+      if (existing) {
+        throw new Error(`Ya existe una persona registrada con el teléfono ${cleanPhone}`);
+      }
     }
 
     let fotoUrl: string | null = null;
@@ -131,7 +140,7 @@ export class IamService {
       codigo,
       data.nombre.trim(),
       (data.apellidos || '').trim(),
-      data.telefono.trim(),
+      cleanPhone,
       data.email?.trim() || null,
       fotoUrl,
       data.tipo || 'SOCIO',

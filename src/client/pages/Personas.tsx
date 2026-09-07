@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, UserCheck, UserX, Phone, Calendar, CreditCard, Users, Cloud, Cpu, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Search, Plus, UserCheck, UserX, Phone, Calendar, CreditCard, Users, Cloud, Cpu, AlertCircle, ShieldCheck, Ticket } from 'lucide-react';
 import { TeamsSyncModal } from '../components/iam/TeamsSyncModal';
 import { NuevaPersonaModal } from '../components/iam/NuevaPersonaModal';
 import { FichaPersonaModal } from '../components/iam/FichaPersonaModal';
@@ -52,6 +52,49 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
     if (!confirm('¿Deseas reactivar a esta persona en el directorio?')) return;
     await fetch(`/api/iam/personas/${id}/reactivar`, { method: 'POST' });
     cargarPersonas();
+  };
+
+  const computeVigenciaBadge = (p: any) => {
+    if (p.tipo === 'EMPLEADO') {
+      return { text: 'Staff 24/7', color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
+    }
+    if (!p.vigencia_fin) {
+      return { text: 'Sin vigencia', color: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30' };
+    }
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const fin = new Date(p.vigencia_fin.includes('T') ? p.vigencia_fin : `${p.vigencia_fin}T23:59:59`);
+    fin.setHours(0, 0, 0, 0);
+    const diffDias = Math.ceil((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    const esCortesia = p.tipo === 'VISITANTE' || p.plan_nombre?.toLowerCase().includes('cortesía');
+
+    if (diffDias > 1) {
+      return { text: `${diffDias}d restantes`, color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+    }
+    if (diffDias === 1) {
+      return { text: esCortesia ? '🎟️ Cortesía (Vence mañ)' : 'Vence mañana', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
+    }
+    if (diffDias === 0) {
+      return { text: esCortesia ? '🎟️ Cortesía (Vence hoy)' : 'Vence hoy (11:59 PM)', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+    }
+    return { text: `Vencido hace ${Math.abs(diffDias)}d`, color: 'bg-red-500/15 text-red-400 border-red-500/30' };
+  };
+
+  const handleOtorgarCortesia = async (p: any) => {
+    const usadas = p.cortesias_usadas || 0;
+    if (usadas >= 3) {
+      alert(`Esta persona (ID #${p.id} - ${p.nombre}) ya utilizó sus 3 pases de cortesía permitidos.`);
+      return;
+    }
+    if (!confirm(`¿Activar pase de cortesía de 1 día (Vence hoy 23:59:59) para ${p.nombre}?\n(Lleva ${usadas} de 3 cortesías usadas)`)) return;
+    try {
+      const res = await fetch(`/api/iam/personas/${p.id}/cortesia`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al otorgar cortesía');
+      alert(`✅ Cortesía activada para ${p.nombre}. Cortesías usadas: ${data.cortesiasUsadas}/3`);
+      cargarPersonas();
+    } catch (err: any) {
+      alert(`⚠️ ${err.message}`);
+    }
   };
 
   return (
@@ -140,7 +183,7 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
                     : 'text-muted-theme hover:text-main-theme bg-theme-subtle border border-theme'
                 }`}
               >
-                {t}
+                {t === 'VISITANTE' ? '🎟️ CORTESÍAS' : t}
               </button>
             ))}
           </div>
@@ -148,10 +191,11 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
       </div>
 
       {/* Grid de Personas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {personas.map((p) => {
           const esSocio = p.tipo === 'SOCIO';
           const estaVigente = p.membresia_estatus === 'VIGENTE';
+          const vigBadge = computeVigenciaBadge(p);
 
           return (
             <div
@@ -174,20 +218,24 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
                       <span className="text-[10px] font-mono-numbers font-bold text-muted-theme uppercase">
                         {p.codigo}
                       </span>
-                      <div className="flex items-center gap-1">
-                        {p.activo === 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {p.activo === 0 ? (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-500/15 text-red-400 border border-red-500/30">
                             INACTIVO
                           </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${vigBadge.color}`}>
+                            {vigBadge.text}
+                          </span>
                         )}
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
                           p.tipo === 'EMPLEADO'
                             ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
                             : p.tipo === 'VISITANTE'
                             ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
                             : 'bg-theme-subtle text-muted-theme border border-theme'
                         }`}>
-                          {p.tipo}
+                          {p.tipo === 'VISITANTE' ? 'CORTESÍA' : p.tipo}
                         </span>
                       </div>
                     </div>
@@ -285,6 +333,21 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
                       <CreditCard className="w-3.5 h-3.5" /> Cobrar
                     </button>
                     <button
+                      onClick={() => handleOtorgarCortesia(p)}
+                      disabled={(p.cortesias_usadas || 0) >= 3}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
+                        (p.cortesias_usadas || 0) >= 3
+                          ? 'bg-zinc-800/40 text-zinc-500 border-zinc-700/30 cursor-not-allowed opacity-60'
+                          : (p.cortesias_usadas || 0) === 2
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                          : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/25'
+                      }`}
+                      title={(p.cortesias_usadas || 0) >= 3 ? 'Límite de 3 cortesías alcanzado' : `Activar cortesía 1 día (${p.cortesias_usadas || 0}/3 usadas)`}
+                    >
+                      <Ticket className="w-3.5 h-3.5" />
+                      <span>{(p.cortesias_usadas || 0) >= 3 ? '3/3' : `${p.cortesias_usadas || 0}/3`}</span>
+                    </button>
+                    <button
                       onClick={() => setPersonaFichaId(p.id)}
                       className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-theme-subtle hover:text-cyan-400 border border-theme transition flex items-center gap-1"
                       title="Ver expediente, foto y control de puertas"
@@ -293,7 +356,7 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
                     </button>
                     <button
                       onClick={() => handleEliminarPersona(p.id)}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition"
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition"
                       title="Dar de baja y retirar del checador"
                     >
                       Baja
@@ -301,6 +364,23 @@ export const Personas: React.FC<{ onSelectPersonaForCobro: (persona: any) => voi
                   </>
                 ) : (
                   <>
+                    {p.tipo !== 'EMPLEADO' && (
+                      <button
+                        onClick={() => handleOtorgarCortesia(p)}
+                        disabled={(p.cortesias_usadas || 0) >= 3}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold transition border ${
+                          (p.cortesias_usadas || 0) >= 3
+                            ? 'bg-zinc-800/40 text-zinc-500 border-zinc-700/30 cursor-not-allowed opacity-60'
+                            : (p.cortesias_usadas || 0) === 2
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                            : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/25'
+                        }`}
+                        title={(p.cortesias_usadas || 0) >= 3 ? 'Límite alcanzado' : `Otorgar cortesía 1 día (${p.cortesias_usadas || 0}/3 usadas)`}
+                      >
+                        <Ticket className="w-3.5 h-3.5" />
+                        <span>{(p.cortesias_usadas || 0) >= 3 ? '3/3 usadas' : `Cortesía (${p.cortesias_usadas || 0}/3)`}</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setPersonaFichaId(p.id)}
                       className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold bg-theme-subtle hover:text-cyan-400 border border-theme transition"

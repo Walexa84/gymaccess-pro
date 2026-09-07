@@ -14,9 +14,8 @@ data/*.db-shm
 data/*.db-wal
 data/test_*.db
 backups/
-uploads/*.jpg
-uploads/*.png
-uploads/*.jpeg
+uploads/*
+!uploads/.gitkeep
 
 # Variables de entorno y secretos
 .env

@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Cloud, Sliders, ShieldCheck, Package } from 'lucide-react';
+import { Building2, Cloud, Sliders, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { CuentasHctTab } from '../components/config/CuentasHctTab';
 import { SucursalesTab } from '../components/config/SucursalesTab';
 import { NivelesAccesoTab } from '../components/config/NivelesAccesoTab';
-import { PaquetesTab } from '../components/config/PaquetesTab';
 
 export const Configuracion: React.FC = () => {
-  const [subTab, setSubTab] = useState<'sucursales' | 'cuentas' | 'niveles' | 'paquetes'>('sucursales');
+  const [subTab, setSubTab] = useState<'sucursales' | 'cuentas' | 'niveles'>('sucursales');
   const [cuentasHct, setCuentasHct] = useState<any[]>([]);
   const { theme } = useTheme();
   const isCyber = theme === 'cyber';
@@ -31,78 +30,64 @@ export const Configuracion: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 transition-colors duration-300">
-      {/* Encabezado del Módulo */}
+      {/* Encabezado del Módulo de Control de Acceso */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl ${isCyber ? 'bg-volt/10 text-volt' : 'bg-sport-orange/10 text-sport-orange'}`}>
+          <div className="p-2.5 rounded-xl bg-accent-badge-theme text-accent-theme border border-highlight-theme">
             <Sliders className="w-7 h-7" />
           </div>
           <div>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-main-theme tracking-tight">
-              Control de Acceso & Sucursales
+              Control de Acceso Físico & Hardware
             </h2>
             <p className="text-sm text-muted-theme mt-0.5 font-medium">
-              Agrupación física de gimnasios y vinculación técnica de cuentas Hik-Connect Teams
+              Sedes físicas, torniquetes, cuentas Hik-Connect Teams y niveles de acceso
             </p>
           </div>
         </div>
 
-        {/* Selector de Subpestañas */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-theme-subtle border border-theme self-start sm:self-auto">
+        {/* Selector de Subpestañas Táctil con Scroll Horizontal */}
+        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-theme-subtle border border-theme overflow-x-auto no-scrollbar max-w-full">
           <button
             onClick={() => setSubTab('sucursales')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               subTab === 'sucursales'
                 ? isCyber
-                  ? 'bg-volt text-black shadow-volt-glow'
-                  : 'bg-sport-orange text-white shadow-orange-glow'
+                  ? 'bg-accent-theme text-black shadow-volt-glow'
+                  : 'bg-accent-theme text-white shadow-md'
                 : 'text-muted-theme hover:text-main-theme hover:bg-theme'
             }`}
           >
-            <Building2 className="w-4 h-4" />
+            <Building2 className="w-4 h-4 text-current" />
             <span>Sucursales & Gimnasios</span>
           </button>
 
           <button
             onClick={() => setSubTab('cuentas')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               subTab === 'cuentas'
                 ? isCyber
-                  ? 'bg-cyan-500 text-black shadow'
+                  ? 'bg-cyan-400 text-black shadow'
                   : 'bg-cyan-600 text-white shadow'
                 : 'text-muted-theme hover:text-main-theme hover:bg-theme'
             }`}
           >
-            <Cloud className="w-4 h-4" />
+            <Cloud className="w-4 h-4 text-current" />
             <span>Cuentas Teams ({cuentasHct.length})</span>
           </button>
 
           <button
             onClick={() => setSubTab('niveles')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
               subTab === 'niveles'
                 ? isCyber
-                  ? 'bg-purple-500 text-white shadow'
+                  ? 'bg-purple-400 text-black shadow'
                   : 'bg-purple-600 text-white shadow'
                 : 'text-muted-theme hover:text-main-theme hover:bg-theme'
             }`}
           >
-            <ShieldCheck className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4 text-current" />
             <span>Niveles & Zonas</span>
-          </button>
-
-          <button
-            onClick={() => setSubTab('paquetes')}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              subTab === 'paquetes'
-                ? isCyber
-                  ? 'bg-emerald-500 text-black shadow'
-                  : 'bg-emerald-600 text-white shadow'
-                : 'text-muted-theme hover:text-main-theme hover:bg-theme'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Paquetes & Membresías</span>
           </button>
         </div>
       </div>
@@ -117,7 +102,6 @@ export const Configuracion: React.FC = () => {
         />
       )}
       {subTab === 'niveles' && <NivelesAccesoTab />}
-      {subTab === 'paquetes' && <PaquetesTab />}
     </div>
   );
 };

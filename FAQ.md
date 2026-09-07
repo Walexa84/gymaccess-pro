@@ -20,6 +20,11 @@
 11. [¿Cómo funciona el ID / Código de Persona para gimnasios con sistema previo vs. consecutivos nuevos?](#faq-11)
 12. [¿Por qué la persona aparecía en Teams "Sin acceso concedido" y cómo se asigna el nivel de acceso en la OpenAPI V2.11?](#faq-12)
 13. [¿Qué pasa cuando damos de baja a un socio en el sistema? ¿Cómo evitamos perder su historial y cómo liberamos el checador?](#faq-13)
+14. [¿Por qué no se pueden crear horarios o niveles de acceso de Teams desde la aplicación y cómo separar accesos de Staff vs. Clientes?](#faq-14)
+15. [¿Cómo funciona la personalización de Identidad & Marca (White-Label) y los Pases de Cortesía temporales?](#faq-15)
+16. [¿Cómo extraer y restaurar copias de seguridad (.db) a una USB y qué pasa con el sistema y los checadores?](#faq-16)
+17. [¿Por qué falló la carga de planes en el Triaje y cómo las directivas maestras prohíben parches de API y alias en backend?](#faq-17)
+18. [¿Cómo funcionan las Cortesías de 1 día, el candado vitalicio de 3 por ID y la Bitácora agnóstica de eventos?](#faq-18)
 
 ---
 
@@ -260,3 +265,158 @@
      - `⚪ Dados de Baja`: Muestra a todos los socios inactivos con su etiqueta roja `INACTIVO`.
   3. **Botón `🔄 Reactivar`:**  
      Si un socio que se dio de baja hace meses regresa, el recepcionista abre "Dados de Baja", presiona **"🔄 Reactivar"**, y la persona vuelve al directorio activo con toda su foto e historial conservados, lista para cobrarle un nuevo plan y subirla al checador en un clic.
+
+---
+
+<a name="faq-14"></a>
+### 14. ¿Por qué no se pueden crear horarios o niveles de acceso de Teams desde la aplicación y cómo separar accesos de Staff vs. Clientes?
+
+- **Pregunta Original de Mario:**  
+  *"¿Y si quiero limitar a los clientes al horario de ellos y el staff 24/7 hay que hacer 2 niveles de acceso verdad? ¿Y dices que no los puedo crear desde la aplicación verdad, tendría que hacerse manual? ¿Eso pasa en otras partes?"*
+- **Formulación Técnica Formal:**  
+  *¿Por qué la OpenAPI V2.11 de Hik-Connect Teams carece de endpoints para mutación DDL de niveles de acceso (`createAccessLevel`) y plantillas horarias (`createSchedule`), restringiendo a las integraciones a un flujo de consumo/asignación, y cómo se modela el acceso diferenciado Staff 24/7 vs. Socios?*
+- **Explicación Didáctica (El Interruptor vs. el Cableado de la Pared):**  
+  Imagina que compras un apagador inteligente para tu casa. Puedes encender la luz, apagarla y programar que se apague a las 11:00 PM desde tu teléfono. Pero la aplicación del apagador no puede romper la pared para meter nuevos cables de cobre ni cambiar el fusible principal; eso se hace una sola vez en el cuadro eléctrico de la casa.
+  La API de Hikvision funciona igual:
+  - **Lo que SÍ permite la API (Operación Diaria):** Dar de alta personas, subir fotos, asignarles llaves, inyectar fechas de corte y abrir torniquetes.
+  - **Lo que NO expone la API de Hikvision (Infraestructura):** Crear reglas de horarios semanales complejos desde código. Hikvision reserva la creación de horarios y niveles al portal oficial de Teams por seguridad para evitar que un bug en un software externo borre la programación de seguridad del edificio.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Configuración de Una Sola Vez (10 Minutos):**  
+     En el portal web de Hik-Connect Teams se crean los 2 niveles:
+     - Nivel 1: *"Staff General"* ➔ Horario 24/7 (Lunes a Domingo, todo el día).
+     - Nivel 2: *"Clientes Gimnasio"* ➔ Horario comercial (ej. Lunes a Viernes 6:00 a 22:00, Sábados 7:00 a 14:00).
+  2. **Sincronización 1-Clic en la App:**  
+     En GymAccess Pro, vas a **Configuración ➔ Horarios & Niveles** y presionas **"🔄 Sincronizar Niveles"**. Ambos niveles se descargan al sistema local.
+  3. **Asignación Automática Inteligente:**  
+     - Al cobrar una membresía de socio, el sistema le asigna el nivel de *"Clientes"*.
+     - Al dar de alta a un recepcionista, entrenador o guardia (categoría `Personal / Staff`), el sistema le asigna el nivel *"Staff General 24/7"* con vigencia de 1 año.
+  ¡Cero complicaciones y máxima seguridad!
+
+---
+
+<a name="faq-15"></a>
+### 15. ¿Cómo funciona la personalización de Identidad & Marca (White-Label) y los Pases de Cortesía temporales?
+
+- **Pregunta Original de Mario:**  
+  *"Necesitamos un menú de configuración para cambiar el nombre del gym, cambiar logo y cambiar colores de la interfaz, analiza y dime qué más podríamos incluir que le dé valor a la solución... Y no veo lo de pases de cortesía..."*
+- **Formulación Técnica Formal:**  
+  *¿Cómo se implementa un sistema White-Label multi-tenant ligero acoplado a persistencia clave-valor en SQLite nativo, inyección dinámica de CSS Variables, sintetizador Web Audio API y enrolamiento biométrico de visitantes sin suscripción comercial?*
+- **Explicación Didáctica (El Traje a la Medida vs. el Uniforme Genérico):**  
+  A ningún dueño de gimnasio le gusta tener un software que parezca un producto genérico y frío con el nombre de otro. Quieren que sus pantallas, la barra de recepción y los recibos que imprimen a sus clientes lleven su propio escudo, su lema y sus colores de combate. Además, cuando llega un amigo del dueño o un cliente potencial pidiendo un pase de cortesía de 1 o 2 días, la recepcionista no debería verse forzada a "inventar una membresía de 0 pesos": debe presionar un botón directo que abra el paso por hoy y se bloquee solo al cerrar.
+- **Solución Aplicada en GymAccess Pro (V2.5 / v0.6):**  
+  1. **Subpestaña "Identidad & Marca":**
+     - Permite cambiar el nombre y eslogan del gimnasio al vuelo.
+     - Permite subir el logo oficial (PNG, SVG, WebP) con almacenamiento en disco y previsualización viva.
+     - Ofrece 5 temas atléticos (⚡ *Cyber Volt*, 🍊 *Sport Blaze*, 🌊 *Ocean Flow*, 🔴 *Crimson Power*, ⚪ *Clean Minimal*) y un selector libre hexadecimal que recalcula las variables CSS (`--accent-color`, `--border-highlight`, etc.) en tiempo real.
+     - Permite capturar datos fiscales (RFC, teléfono, dirección) y pie de ticket para recibos de cobro profesionales.
+     - Incorpora sintetizador auditivo nativo en el navegador para emitir bips de bienvenida o alertas de membresía vencida en la computadora de recepción.
+  2. **Pases de Cortesía / Visitantes en 1 Clic:**
+     - En el modal **+ Nueva Persona**, ahora existe la 3ra opción: `[ 🔵 Cortesía ]`.
+     - Permite elegir duración: `Hoy (1 d)`, `2 días`, `3 días` o `7 días`.
+     - Otorga paso inmediato y programa en el reloj de cuarzo del checador la expiración exacta a las 23:59:59 del día de corte, garantizando bloqueo autónomo sin costos extras.
+
+---
+
+<a name="faq-16"></a>
+### 16. ¿Cómo extraer y restaurar copias de seguridad (.db) a una USB y qué pasa con el sistema y los checadores?
+
+- **Pregunta Original de Mario:**  
+  *"Se corta el botón, y las copias de seguridad ¿cómo las puedo sacar de esa PC, y cómo las puedo restaurar? ¿Esa copia de seguridad dejará el sistema tal como cuando se realizó?"*
+- **Formulación Técnica Formal:**  
+  *¿Cuál es el protocolo de resguardo físico y restauración atómica en caliente de snapshots SQLite generados vía VACUUM INTO, y cuál es la estrategia de conciliación de estado entre el almacenamiento relacional local y la memoria no volátil de los dispositivos perimetrales (Hikvision RTC/Flash)?*
+- **Explicación Didáctica (La Llave en la Caja Fuerte y el Auto en Movimiento):**  
+  - *Sacar la copia a una USB:* Guardar respaldos únicamente en el disco duro de la misma computadora de recepción es como dejar la llave de repuesto adentro de la misma caja fuerte que se descompuso. Si el disco duro se quema o le cae un virus, pierdes todo. Por eso necesitas sacarlo a una memoria USB física o a la nube (Estrategia 3-2-1).
+  - *Restaurar la copia:* La base de datos es el motor del gimnasio. Si intentas cambiar el motor mientras el auto va a 100 km/h, se rompen los engranes. Por eso el sistema detiene las escrituras, cierra los archivos de forma limpia (`PRAGMA wal_checkpoint(TRUNCATE)`), reemplaza el archivo y vuelve a encender el motor de inmediato sin errores.
+  - *¿El sistema queda idéntico?:* En la computadora, **SÍ, 100% IDÉNTICO**. Gracias a `VACUUM INTO`, se congela una fotografía milimétrica de clientes, fotos, precios y cobros. Con respecto a los checadores físicos (torniquetes), ellos tienen su propio chip. Si en el lapso entre la copia y hoy diste de alta a alguien directamente en Teams, la PC no lo tendrá, pero el botón *"Triaje Checador"* envía la lista exacta del respaldo al checador para que queden emparejados en 1 clic.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Botón `[ 📥 Descargar ]` en cada respaldo:** Permite descargar el archivo `.db` al instante desde el navegador a la carpeta de descargas de Windows o directamente a una USB insertada.
+  2. **Botón `[ 🔄 Restaurar ]` con advertencia de seguridad:** Modal de confirmación que detalla la fecha/hora del respaldo y advierte sobre el reemplazo de movimientos posteriores antes de ejecutar la restauración atómica.
+  3. **Endpoint de restauración `/api/backups/restore/:filename`:** Cierra descriptores de SQLite, elimina temporales WAL/SHM y monta el snapshot atómico de manera segura.
+  4. **Corrección de layout anti-recorte:** En `AjustesGenerales.tsx`, se aplicó `shrink-0` y salto de línea adaptativo (`lg:flex-row`), evitando que el botón de pestañas se comprima a "Copias de Se".
+
+---
+
+<a name="faq-17"></a>
+### 17. ¿Por qué falló la carga de planes en el Triaje y cómo las directivas maestras prohíben parches de API y alias en backend?
+
+- **Pregunta Original de Mario:**  
+  *"Al importar desde el triaje no puedo seleccionar el plan... ¿No es un parche esa solución? ... Mi pregunta es si tenemos reglas que nos evitan planear o implementar parches de este tipo, ¿por qué sucedió? ... ¿Cómo podríamos modificar GEMINI.md global para evitar que vuelva a suceder?"*
+- **Formulación Técnica Formal:**  
+  *¿Cuál es el riesgo arquitectónico del acoplamiento tolerante mediante enrutamiento redundante (API Aliasing) frente a la disciplina Fail-Fast con Fuente Única de Verdad (SSOT), y cómo se previene la fuga de Strings Mágicos no tipados mediante gobernanza estricta en las directivas maestras?*
+- **Explicación Didáctica (La Ventanilla Equivocada y la Farmacia Complaciente):**  
+  - *Por qué falló:* Todos los módulos acudían a la ventanilla oficial de planes (`/api/gym/planes`), pero el modal de Triaje intentó consultar una ventanilla inexistente (`/api/pos/planes`). Como Express tenía una regla comodín para mostrar la web, devolvió la página HTML en vez de planes. El modal no pudo convertir letras en paquetes y el selector quedó vacío.
+  - *Por qué proponer un alias era un parche:* Si el cliente se equivoca de dirección, abrir una puerta falsa en el servidor es como abrir una sucursal fantasma para no admitir que imprimiste mal un volante. Solo genera confusión y deuda técnica. La solución limpia es corregir el volante (el cliente).
+- **Solución y Blindaje Aplicados en GymAccess Pro y GEMINI.md:**  
+  1. **Enmienda en GEMINI.md (Pilar 1 y §7):** Prohibición estricta de parches de conveniencia y alias en el backend. Principio *Fail-Fast*: toda petición inválida debe ser rechazada inmediatamente (`404 Not Found`). La causa raíz DEBE corregirse en el archivo emisor del error.
+  2. **Corta-fuegos API 404 en Express:** Se blindó `src/server/index.ts` con un filtro previo `app.all('/api/*', ...)` que responde `404 JSON` ante cualquier ruta inexistente, evitando que vuelva a disfrazarse un error con páginas HTML.
+  3. **Corrección limpia en `TeamsSyncModal.tsx`:** Se redirigió la petición a `/api/gym/planes`, se formatearon las opciones con precio y días, y se agregó la opción neutra *"Sin Plan Inicial (Cobrar después)"* para mayor flexibilidad operativa.
+
+---
+
+<a name="faq-18"></a>
+### 18. ¿Cómo funcionan las Cortesías de 1 día, el candado vitalicio de 3 por ID y la Bitácora agnóstica de eventos?
+
+- **Pregunta Original de Mario:**  
+  *"¿Debería mostrar la vigencia restante en este panel aunque no demos click la ficha no? Además no veo cómo dar las cortesías... Yo veo las cortesías más como una suerte de prueba gratuita para que prueben el gimnasio y siento que siempre deben estar limitadas a 1 día, y tener un modo de verificación para que una persona no pueda tener más de 3 cortesías para siempre... No siempre se pide teléfono, ¿no sería mejor por ID? ... El módulo de bitácora me parece bien, pero iremos agregando más funciones y hay que irlo actualizando, ponle un recordatorio a eso, y tomo por entendido que es un módulo independiente y que puede ser migrado si cambiamos después el giro del negocio. Los eventos registrados como accesos concedidos y denegados, ¿tenemos forma de identificarlos? Por ejemplo es muy diferente una denegación por fecha vencida que una porque no reconoce a la persona."*
+- **Formulación Técnica Formal:**  
+  *¿Cómo se implementa un modelo anti-abuso de pases de prueba gratuitos (Free Trial) acoplado a la entidad central de identidad (`persona_id`) con teléfono opcional y detección preventiva de duplicados fonéticos/nominales, conjuntamente con un subsistema de auditoría desacoplado basado en Clean Architecture para la trazabilidad granular de eventos físicos (Concedido, Denegado Vencido, Denegado Desconocido, Apertura Manual) y transaccionales?*
+- **Explicación Didáctica (La Muestra Gratis del Helado y la Bitácora de Vuelo):**  
+  - *Las Cortesías de 1 día (El Helado de Prueba):* Una cortesía es para que conozcan las instalaciones hoy. Si le diéramos 30 días o no tuviéramos límite, la gente vendría a pedir cortesías todos los meses sin pagar nunca. Por eso expira hoy mismo a las 23:59:59 y se bloquea un candado inflexible: máximo 3 en toda la vida del cliente. A la cuarta, el sistema le dice amablemente: *"Ya disfrutaste tus 3 pruebas gratuitas, ahora te toca inscribirte o pagar tu pase diario"*.
+  - *¿Por qué por ID y teléfono opcional?:* Si obligas a pedir teléfono, un cliente desconfiado se da la vuelta y se va, o la recepcionista pone ceros falsos (`0000000000`). Al identificar por ID (`persona_id`), no dependes del teléfono. Y para evitar que Juan se registre como nuevo cada semana para burlar el límite de 3, el sistema busca en vivo si ya existe un "Juan Pérez" y alerta a la recepcionista antes de crearlo.
+  - *La Bitácora de Vuelo Desacoplada:* Así como los aviones tienen una "caja negra" que anota cada movimiento sin importar si el avión lleva pasajeros o carga, nuestro módulo de bitácora (`src/server/modules/audit/`) anota quién abrió un torniquete, quién cobró y quién entró. Si mañana convertimos el sistema en un control de acceso para oficinas, escuelas o estacionamientos, este módulo se traslada intacto porque no sabe nada de gimnasios: solo sabe de auditoría, personas y accesos.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Vigencia Semáforo en Tarjetas de Clientes (`Personas.tsx`):** Píldoras visibles directamente en cada tarjeta:
+     - 🟢 `X días restantes` (Socio vigente)
+     - 🟡 `Vence hoy (11:59 PM)`
+     - 🎟️ `Cortesía (Vence hoy 11:59 PM)`
+     - 🔴 `Vencido hace X días`
+     - 🟣 `Staff / Acceso Permanente`
+  2. **Botón Directo `🎟️ X/3`:** Permite emitir cortesía en 1 clic si `usadas < 3`. Si llega a 3, se bloquea con candado rojo y el backend rechaza cualquier intento posterior con `400 Bad Request`.
+  3. **Teléfono Opcional con Índice Parcial:** En SQLite, `personas.telefono` admite valores nulos, pero si se captura un número, se valida que no esté duplicado mediante un índice parcial (`WHERE telefono IS NOT NULL AND telefono != ''`).
+  4. **Trazabilidad de Aperturas Manuales:** Al presionar "Abrir torniquete" en recepción, se registra en `eventos_acceso` como `APERTURA_MANUAL`, se emite por SSE al monitor en vivo y se audita en la bitácora con el nombre del operador.
+  5. **Pantalla y Módulo `Bitácora & Auditoría`:** Accesible desde la barra de navegación con pestañas de *Accesos Físicos* (filtrado por Concedido, Denegado Vencido, Denegado Desconocido y Apertura Manual) y *Operaciones del Sistema* (Caja, Cortesías, Altas).
+
+---
+
+<a name="faq-19"></a>
+### 19. ¿Por qué la Bitácora no mostraba la fecha, cómo exportar a Excel/PDF sin romper caracteres y por qué abrir el sitio al 80%?
+
+- **Pregunta Original de Mario:**  
+  *"Veo que me dice la hora del evento pero no la fecha, además no veo cómo exportar estos eventos en Excel o en PDF, también siento que aunque no estirado al 100% del ancho debería estar un poco más abierto el sitio, como a un 80%, y requiero responsividad para múltiples dispositivos en todo el sitio, presente y futuro."*
+- **Formulación Técnica Formal:**  
+  *¿Cómo se implementa la normalización de marcas temporales ISO/SQLite en cliente para desagregar fecha (`Intl.DateTimeFormat`) y hora, la exportación de datasets a CSV con Byte Order Mark (`\uFEFF`) y delimitador punto y coma para interoperabilidad con Microsoft Excel en español, hojas de estilo `@media print` para renderizado ejecutivo en PDF, y contenedores fluidos adaptativos de ancho extendido (`max-w-[1600px]`) con grid móvil a 4K?*
+- **Explicación Didáctica (El Reloj sin Calendario, el Excel en Chino y la Pantalla con Franjas Negras):**  
+  - *La Hora sin Fecha:* Saber que alguien entró a las `01:47 a. m.` no te sirve si no sabes si fue hoy, ayer o la semana pasada. Ahora la bitácora te muestra claramente: `07 Sep 2026, 01:47:44 a. m.`, convirtiendo automáticamente el tiempo del servidor al horario de México.
+  - *Exportar a Excel sin dolores de cabeza:* Muchas veces, al bajar un archivo `.csv`, abres Excel y las palabras con tildes o la letra "ñ" salen como garabatos raros (`Bitcora`), y todas las columnas quedan pegadas en una sola celda. Esto sucede porque Excel en español asume que el separador es el punto y coma (`;`) y necesita una pequeña "marca invisible" al principio del archivo (llamada UTF-8 BOM) para saber que está en español. Nuestro botón de Excel genera esa marca automáticamente: le das doble clic y abre perfecto, limpio y con sus columnas separadas.
+  - *Imprimir / PDF con Membrete:* Si el dueño del gimnasio o un auditor pide un informe impreso, no quieres que se imprima la barra de navegación negra ni los botones de la pantalla. Al hacer clic en **"Imprimir / PDF"**, el sistema oculta todo lo visual de la web y genera una hoja blanca formal con el logo de tu gimnasio, fecha de emisión y tabla limpia lista para firmar o guardar como PDF.
+  - *El Ancho al ~80% y Responsividad:* Los monitores de computadora actuales (Full HD y 2K) son panorámicos. La página estaba encerrada en una caja angosta de 1280px (`max-w-7xl`), dejando dos franjas negras vacías a los lados que hacían sentir el sistema apretado. Lo abrimos a `1600px / 1720px` (~80-85% del monitor), permitiendo ver 4 tarjetas de clientes por fila en lugar de 3, pero conservando total adaptabilidad en laptops pequeñas, iPads y teléfonos celulares.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Helper `formatFechaHora()` en `Bitacora.tsx`:** Normaliza marcas de tiempo de SQLite (`YYYY-MM-DD HH:MM:SS`) y extrae independientemente la fecha en español natural (`07 Sep 2026`) y la hora con segundos en formato local (GMT-6).
+  2. **Botón `📊 Exportar Excel`:** Genera y descarga al instante un archivo CSV con prefijo `\uFEFF` y delimitadores `;` con nombres temporales claros (`bitacora_accesos_YYYY-MM-DD.csv` y `bitacora_operaciones_YYYY-MM-DD.csv`).
+  3. **Botón `📄 Imprimir / PDF`:** Abre el diálogo de impresión con reglas `@media print` en `index.css` que suprimen el encabezado web, footer y botones, renderizando un membrete corporativo con los colores y branding de la sucursal.
+  4. **Canvas Extendido al ~80-85% y Responsividad:**
+     - En `App.tsx` y `Navbar.tsx`: Se migró de `max-w-7xl` a `w-full max-w-[1600px] 2xl:max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8`.
+     - En `Personas.tsx`: Cuadrícula fluida adaptada a `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5`.
+     - Se respetó el límite de líneas (§13): `Bitacora.tsx` se mantuvo en 492 líneas.
+
+---
+
+<a name="faq-20"></a>
+### 20. ¿Por qué se requerían múltiples clics para marcar zonas y deben poder alterarse las puertas de un socio manualmente?
+
+- **Pregunta Original de Mario:**  
+  *"En zonas y puertas autorizadas tengo que cliquear mucho para marcar o desmarcar las opciones, pero la pregunta clave es si debo poder hacerlo?"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo mitigar el conflicto de propagación de eventos (*Event Bubbling*) entre contenedores interactivos y elementos de formulario nativos, y cuál es el modelo de gobierno de autorización física basado en roles y contratos comerciales (RBAC / SSOT: Single Source of Truth) para prevenir la manipulación no auditada de privilegios de acceso en clientes con membresías activas?*
+- **Explicación Didáctica (El Rebote del Clic y el Boleto de Cine):**  
+  - *El choque de clics (Event Bubbling):* Tanto la caja contenedora como la casilla de verificación tenían la orden de "cambiar estado al hacer clic". Al hacer clic en la casilla, esta se marcaba, pero la señal subía a la caja padre y esta la desmarcaba en la misma milésima de segundo. Por eso se sentía que "no agarraba". Al usar un elemento semántico `<label>` sin eventos duplicados, ahora responde instantáneamente al primer toque.
+  - *¿Debe poder cambiarse a mano en un socio? (El Boleto de Cine):* Si compraste un boleto para la sala normal ($50), la cajera no puede dejarte pasar a la sala VIP ($180) por simpatía. En el gimnasio es idéntico: **las puertas a las que tiene derecho un socio las define el plan comercial que pagó en caja**. Si permitiéramos que el recepcionista marque o desmarque puertas libremente, se generaría fuga de dinero (regalar accesos VIP a amigos sin pagar) y contradicciones de datos. Por ello, las puertas de un socio son **de solo-lectura y derivadas de su plan activo**. Para darle más puertas, se le vende el paquete correspondiente en el Punto de Cobro.
+  - *¿Para quiénes SÍ es manual?:* Para empleados, entrenadores, personal de limpieza y proveedores, ya que ellos no compran membresías comerciales; a ellos la administración les asigna manualmente las llaves de acceso que requieran.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Modo "Regido por Plan" en `FichaZonasList.tsx`:**  
+     - Si la persona es un socio con plan activo, las zonas incluidas aparecen marcadas con el badge `🏷️ Plan Activo`, candado `🔒` y estilo protegido.
+     - Las zonas no incluidas aparecen atenuadas con el distintivo `🔒 No incluido en plan`, y una nota didáctica explica que para desbloquearlas debe actualizarse el plan en Cobro.
+  2. **Modo Manual para Staff / Visitantes:**  
+     - Los empleados o personas sin membresía conservan la edición manual libre.
+  3. **Solución del Clic Único:**  
+     - Se reemplazó el contenedor por un `<label>` accesible que elimina la duplicidad de eventos y conmuta al primer toque limpio.

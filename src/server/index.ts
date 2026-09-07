@@ -9,11 +9,13 @@ import { SyncWorker } from './services/syncWorker.js';
 import { iamRouter } from './modules/iam/iam.routes.js';
 import { accessRouter } from './modules/access/access.routes.js';
 import { posRouter } from './modules/gym_pos/pos.routes.js';
+import { auditRouter } from './modules/audit/audit.routes.js';
 
 // Rutas y Controladores Base
 import { authRouter } from './routes/auth.js';
 import { hardwareRouter } from './routes/hardware.js';
 import { backupsRouter } from './routes/backups.js';
+import { brandingRouter } from './modules/config/branding.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +38,7 @@ app.use('/uploads', express.static(uploadsPath));
 app.use('/api/iam', iamRouter);        // Directorio central de personas y biometría
 app.use('/api/access', accessRouter);  // Motor de control de acceso, torniquetes y eventos
 app.use('/api/gym', posRouter);        // Punto de venta, planes de membresía y cobro
+app.use('/api/audit', auditRouter);    // Bitácora y auditoría desacoplada del sistema
 
 // ============================================================================
 // 2. RUTAS DE SOPORTE Y SISTEMA
@@ -43,6 +46,15 @@ app.use('/api/gym', posRouter);        // Punto de venta, planes de membresía y
 app.use('/api/auth', authRouter);
 app.use('/api/hardware', hardwareRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/config/branding', brandingRouter);
+
+// Corta-fuegos Fail-Fast de APIs: cualquier ruta /api/* no capturada debe responder 404 JSON, nunca entregar HTML
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `Endpoint de API no encontrado: ${req.method} ${req.originalUrl}`,
+  });
+});
 
 // Servir frontend en producción o cliente estático
 const clientDist = path.resolve(process.cwd(), 'dist', 'client');

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
+import { BrandingProvider } from './context/BrandingContext';
 import { Navbar } from './components/Navbar';
 import { Monitor } from './pages/Monitor';
 import { Personas } from './pages/Personas';
 import { Cobro } from './pages/Cobro';
 import { Configuracion } from './pages/Configuracion';
+import { AjustesGenerales } from './pages/AjustesGenerales';
+import { Bitacora } from './pages/Bitacora';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('monitor');
@@ -55,16 +58,18 @@ function AppContent() {
     <div className="min-h-screen bg-app-theme text-main-theme flex flex-col transition-colors duration-300">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} hardwareOnline={hardwareOnline} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-[1600px] 2xl:max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8">
         {activeTab === 'monitor' && <Monitor onNavigateCobro={handleCobroPersona} />}
         {activeTab === 'personas' && <Personas onSelectPersonaForCobro={handleCobroPersona} />}
         {activeTab === 'cobro' && <Cobro selectedSocioPreload={selectedPersonaForCobro} />}
         {activeTab === 'acceso' && <Configuracion />}
+        {activeTab === 'bitacora' && <Bitacora />}
+        {activeTab === 'ajustes' && <AjustesGenerales />}
       </main>
 
-      <footer className="border-t border-theme py-5 text-center text-xs text-muted-theme transition-colors">
+      <footer className="border-t border-theme py-5 text-center text-xs text-muted-theme transition-colors hidden md:block">
         <div className="flex items-center justify-center gap-2">
-          <span className="font-semibold text-main-theme">AccessCore & Gym POS V2.0</span>
+          <span className="font-semibold text-main-theme">AccessCore & Gym POS V2.5</span>
           <span>•</span>
           <span>Control Biométrico Autónomo Hikvision</span>
           <span>•</span>
@@ -77,8 +82,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <BrandingProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </BrandingProvider>
   );
 }

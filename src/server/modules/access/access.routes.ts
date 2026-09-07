@@ -8,6 +8,7 @@ import { HikConnectService } from '../../services/hikconnect.js';
 import { TelemetryService } from '../../services/telemetryService.js';
 import { db } from '../../db/database.js';
 import { HardwareManager } from '../../services/hardwareManager.js';
+import { AuditService } from '../audit/audit.service.js';
 
 export const accessRouter = Router();
 
@@ -209,13 +210,48 @@ accessRouter.post('/torniquetes/:id/open', async (req: Request, res: Response) =
 
     if (!torniquete) return res.status(404).json({ success: false, error: 'Torniquete no encontrado' });
 
+    let ok = false;
     if (torniquete.driver === 'HIKCONNECT_TEAMS' && torniquete.cloud_resource_id) {
       const result = await HikConnectService.remoteControlDoor(torniquete.cloud_resource_id, 1, torniquete.cuenta_hct_id);
-      return res.json(result);
+      ok = result.success;
     } else {
-      const ok = await HardwareManager.remoteControlDoor(String(torniquete.canal_relevador || 1), 'open');
-      return res.json({ success: ok, message: ok ? 'Apertura enviada' : 'Fallo en apertura' });
+      ok = await HardwareManager.remoteControlDoor(String(torniquete.canal_relevador || 1), 'open');
     }
+
+    const usuarioNombre = (req as any).usuario?.nombre || 'Recepción';
+    const direccionEvento = (torniquete.direccion === 'SALIDA') ? 'SALIDA' : 'ENTRADA';
+
+    // 1. Guardar en eventos_acceso como APERTURA_MANUAL
+    const insEv = db.prepare(`
+      INSERT INTO eventos_acceso (
+        dispositivo_id, torniquete_id, persona_nombre, tipo_evento, direccion, metodo_autenticacion, fecha_hora
+      ) VALUES (?, ?, ?, 'APERTURA_MANUAL', ?, 'REMOTO_SOFTWARE', CURRENT_TIMESTAMP)
+    `).run(torniquete.dispositivo_id, torniquete.id, `Apertura Manual (${usuarioNombre})`, direccionEvento);
+
+    // 2. Emitir en tiempo real por SSE para el monitor de recepción
+    SseManager.broadcastEvent({
+      id: Number(insEv.lastInsertRowid),
+      personaNombre: `Apertura Manual (${usuarioNombre})`,
+      tipoEvento: 'APERTURA_MANUAL',
+      torniqueteId: torniquete.id,
+      torniqueteNombre: torniquete.nombre,
+      direccion: direccionEvento,
+      fechaHora: new Date().toISOString(),
+    });
+
+    // 3. Registrar en módulo agnóstico de auditoría
+    AuditService.registrarEvento({
+      modulo: 'ACCESO',
+      accion: 'APERTURA_MANUAL',
+      usuarioNombre,
+      recursoId: torniquete.id,
+      detalles: `Apertura manual enviada al torniquete "${torniquete.nombre}". Resultado: ${ok ? 'Éxito' : 'Fallo'}`,
+      resultado: ok ? 'EXITO' : 'FALLO',
+      ip: req.ip,
+      metadata: { torniqueteId: torniquete.id, driver: torniquete.driver },
+    });
+
+    return res.json({ success: ok, message: ok ? 'Apertura enviada' : 'Fallo en apertura' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

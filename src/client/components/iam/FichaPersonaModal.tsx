@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  X, AlertCircle, ShieldCheck, 
-  RefreshCw, Cpu, Phone, Mail, CheckCircle2,
-  Edit3, Save
+  X, AlertCircle, ShieldCheck, RefreshCw, Cpu, Phone, Mail, CheckCircle2,
+  Edit3, Save, Lock
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { FaceCropperModal } from './FaceCropperModal';
@@ -18,12 +17,7 @@ interface FichaPersonaModalProps {
   onSuccess: () => void;
 }
 
-export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({
-  isOpen,
-  onClose,
-  personaId,
-  onSuccess,
-}) => {
+export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({ isOpen, onClose, personaId, onSuccess }) => {
   const { theme } = useTheme();
   const isCyber = theme === 'cyber';
 
@@ -42,13 +36,7 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({
   // Edición de datos generales
   const [editandoDatos, setEditandoDatos] = useState(false);
   const [guardandoDatos, setGuardandoDatos] = useState(false);
-  const [formDatos, setFormDatos] = useState({
-    codigo: '',
-    nombre: '',
-    apellidos: '',
-    telefono: '',
-    email: '',
-  });
+  const [formDatos, setFormDatos] = useState({ codigo: '', nombre: '', apellidos: '', telefono: '', email: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -338,13 +326,27 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({
                     <div className="space-y-2 pt-1">
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="text-[10px] text-muted-theme font-bold block mb-0.5">ID / Código *</label>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] text-muted-theme font-bold">ID / Código *</label>
+                            {estaSincronizado && (
+                              <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-0.5" title="Inmutable: Ya grabado en hardware">
+                                <Lock className="w-2.5 h-2.5" /> Fijo
+                              </span>
+                            )}
+                          </div>
                           <input
                             type="text"
                             value={formDatos.codigo}
+                            disabled={estaSincronizado}
+                            readOnly={estaSincronizado}
                             onChange={(e) => setFormDatos({ ...formDatos, codigo: e.target.value })}
-                            className="w-full px-2 py-1.5 rounded-lg bg-card-theme border border-theme text-xs text-main-theme font-mono font-bold focus:outline-none focus:border-accent-theme"
-                            placeholder="Ej. 1001 o CX00000001"
+                            className={`w-full px-2 py-1.5 rounded-lg border text-xs font-mono font-bold focus:outline-none transition ${
+                              estaSincronizado
+                                ? 'bg-theme-subtle border-theme text-muted-theme cursor-not-allowed opacity-75 select-none'
+                                : 'bg-card-theme border-theme text-main-theme focus:border-accent-theme'
+                            }`}
+                            placeholder="Ej. 1001"
+                            title={estaSincronizado ? 'Inmutable: El código no se puede modificar porque ya está grabado en el checador facial y en Hik-Connect Teams' : undefined}
                           />
                         </div>
                         <div>
@@ -443,6 +445,8 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({
                 niveles={niveles}
                 nivelesSeleccionados={nivelesSeleccionados}
                 toggleNivel={toggleNivel}
+                esSocioConPlan={Boolean(persona?.tipo === 'SOCIO' && membresia?.id)}
+                planNombre={membresia?.plan_nombre}
               />
             </>
           )}

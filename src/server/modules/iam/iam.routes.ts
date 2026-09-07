@@ -26,6 +26,21 @@ iamRouter.get('/personas/siguiente-codigo', async (_req: Request, res: Response)
   }
 });
 
+// Buscar posibles personas duplicadas por nombre/apellido (debe ir antes de /personas/:id)
+iamRouter.get('/personas/buscar-duplicados', async (req: Request, res: Response) => {
+  try {
+    const { nombre, apellidos } = req.query;
+    const { CortesiasService } = await import('./cortesias.service.js');
+    const duplicados = CortesiasService.buscarPosiblesDuplicados(
+      String(nombre || ''),
+      apellidos ? String(apellidos) : undefined
+    );
+    res.json({ duplicados });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Detalle de una persona
 iamRouter.get('/personas/:id', (req: Request, res: Response) => {
   try {
@@ -228,6 +243,39 @@ iamRouter.put('/personas/:id/datos', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Otorgar cortesía directa por ID a un cliente existente (máximo 3 de por vida)
+iamRouter.post('/personas/:id/cortesia', async (req: Request, res: Response) => {
+  try {
+    const personaId = Number(req.params.id);
+    const { CortesiasService } = await import('./cortesias.service.js');
+    const result = await CortesiasService.otorgarCortesia(personaId, {
+      usuarioId: (req as any).usuario?.id,
+      usuarioNombre: (req as any).usuario?.nombre || 'Recepción',
+      ip: req.ip,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Consultar cuántas cortesías lleva un cliente por su ID
+iamRouter.get('/personas/:id/cortesias', async (req: Request, res: Response) => {
+  try {
+    const personaId = Number(req.params.id);
+    const { CortesiasService } = await import('./cortesias.service.js');
+    const usadas = CortesiasService.contarCortesias(personaId);
+    res.json({
+      personaId,
+      cortesiasUsadas: usadas,
+      cortesiasRestantes: Math.max(0, 3 - usadas),
+      puedeRecibirCortesia: usadas < 3,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

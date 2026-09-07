@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS personas (
   codigo TEXT UNIQUE NOT NULL, -- Identificador único legible (ej. PER-1001)
   nombre TEXT NOT NULL,
   apellidos TEXT DEFAULT '',
-  telefono TEXT UNIQUE NOT NULL,
+  telefono TEXT,
   email TEXT,
   foto_url TEXT,
   tipo TEXT CHECK(tipo IN ('SOCIO', 'EMPLEADO', 'VISITANTE', 'PROVEEDOR')) DEFAULT 'SOCIO',
@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS personas (
   creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
   actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_personas_telefono_unique ON personas(telefono) WHERE telefono IS NOT NULL AND telefono != '';
 
 CREATE TABLE IF NOT EXISTS credenciales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -263,4 +265,26 @@ CREATE TABLE IF NOT EXISTS gym_plan_sucursales (
 
 CREATE INDEX IF NOT EXISTS idx_sucursal_disp ON sucursal_dispositivos(sucursal_id);
 CREATE INDEX IF NOT EXISTS idx_plan_sucursal ON gym_plan_sucursales(plan_id);
+
+-- ============================================================================
+-- BITÁCORA Y AUDITORÍA INDEPENDIENTE DEL SISTEMA (CLEAN ARCHITECTURE)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS eventos_auditoria (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  modulo TEXT NOT NULL,
+  accion TEXT NOT NULL,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  usuario_nombre TEXT,
+  persona_id INTEGER REFERENCES personas(id) ON DELETE SET NULL,
+  persona_nombre TEXT,
+  recurso_id TEXT,
+  detalles TEXT,
+  resultado TEXT CHECK(resultado IN ('EXITO', 'FALLO', 'ADVERTENCIA')) DEFAULT 'EXITO',
+  ip TEXT,
+  metadata_json TEXT,
+  fecha_hora DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON eventos_auditoria(fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS idx_auditoria_modulo ON eventos_auditoria(modulo, accion);
 

@@ -200,7 +200,7 @@ export class PosService {
       SELECT COALESCE(SUM(monto), 0) as total FROM gym_pagos WHERE DATE(fecha_pago) = ?
     `).get(hoyStr) as any).total;
 
-    // Cálculo de aforo en vivo: Entradas hoy - Salidas hoy
+    // Cálculo de aforo en vivo: Entradas hoy - Salidas hoy (estrictamente socios verificados)
     const entradasHoy = (db.prepare(`
       SELECT COUNT(*) as count FROM eventos_acceso
       WHERE DATE(fecha_hora) = ? AND direccion = 'ENTRADA' AND tipo_evento = 'CONCEDIDO'
@@ -212,6 +212,30 @@ export class PosService {
     `).get(hoyStr) as any).count;
 
     const aforoActual = Math.max(0, entradasHoy - salidasHoy);
+
+    // Métrica de auditoría: Aperturas manuales del día y operadores
+    const aperturasManualesHoy = (db.prepare(`
+      SELECT COUNT(*) as count FROM eventos_acceso
+      WHERE DATE(fecha_hora) = ? AND tipo_evento = 'APERTURA_MANUAL'
+    `).get(hoyStr) as any).count;
+
+    const opRows = db.prepare(`
+      SELECT DISTINCT usuario_nombre FROM eventos_auditoria
+      WHERE DATE(fecha_hora) = ? AND accion = 'APERTURA_MANUAL' AND usuario_nombre IS NOT NULL
+    `).all() as any[];
+
+    let operadoresAperturaHoy = opRows.map(r => r.usuario_nombre).filter(Boolean).join(', ');
+    if (!operadoresAperturaHoy && aperturasManualesHoy > 0) {
+      const ev = db.prepare(`
+        SELECT persona_nombre FROM eventos_acceso 
+        WHERE DATE(fecha_hora) = ? AND tipo_evento = 'APERTURA_MANUAL'
+        ORDER BY id DESC LIMIT 1
+      `).get(hoyStr) as any;
+      if (ev?.persona_nombre) {
+        const match = ev.persona_nombre.match(/\((.*?)\)/);
+        operadoresAperturaHoy = match ? match[1] : 'Recepción';
+      }
+    }
 
     const ultimosAccesos = db.prepare(`
       SELECT e.*, t.nombre as torniquete_nombre, t.direccion as torniquete_direccion
@@ -238,6 +262,8 @@ export class PosService {
       entradasHoy,
       salidasHoy,
       aforoActual,
+      aperturasManualesHoy,
+      operadoresAperturaHoy: operadoresAperturaHoy || 'Recepción',
       ultimosAccesos,
       vencenPronto,
     };

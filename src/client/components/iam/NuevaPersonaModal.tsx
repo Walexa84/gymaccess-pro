@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Camera, Upload, Check, AlertCircle, Sparkles, Building2, 
-  CreditCard, ShieldCheck, UserCheck, RefreshCw, Layers, Edit3, Trash2
+  CreditCard, ShieldCheck, UserCheck, RefreshCw, Layers, Edit3, Trash2, Ticket
 } from 'lucide-react';
 import { WebcamModal } from '../WebcamModal';
 import { FaceCropperModal } from './FaceCropperModal';
 import { useTheme } from '../../context/ThemeContext';
+import { useBranding } from '../../context/BrandingContext';
 
 interface NuevaPersonaModalProps {
   isOpen: boolean;
@@ -14,7 +15,9 @@ interface NuevaPersonaModalProps {
 }
 
 export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [tipo, setTipo] = useState<'SOCIO' | 'EMPLEADO'>('SOCIO');
+  const { branding } = useBranding();
+  const [tipo, setTipo] = useState<'SOCIO' | 'EMPLEADO' | 'VISITANTE'>('SOCIO');
+  const [diasCortesia, setDiasCortesia] = useState<number>(branding.cortesia_dias || 1);
   const [codigo, setCodigo] = useState('');
   const [nombre, setNombre] = useState('');
   const [apellidos, setApellidos] = useState('');
@@ -39,6 +42,7 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
   // Estados de carga y error
   const [guardando, setGuardando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [duplicados, setDuplicados] = useState<any[]>([]);
 
   const { theme } = useTheme();
   const isCyber = theme === 'cyber';
@@ -50,57 +54,44 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (nombre.trim().length >= 3) {
+      const timer = setTimeout(() => {
+        fetch(`/api/iam/personas/buscar-duplicados?nombre=${encodeURIComponent(nombre.trim())}&apellidos=${encodeURIComponent(apellidos.trim())}`)
+          .then((r) => r.json())
+          .then((d) => setDuplicados(d.duplicados || []))
+          .catch(() => {});
+      }, 350);
+      return () => clearTimeout(timer);
+    } else {
+      setDuplicados([]);
+    }
+  }, [nombre, apellidos]);
+
   const resetForm = () => {
-    setCodigo('');
-    setNombre('');
-    setApellidos('');
-    setTelefono('');
-    setEmail('');
-    setTipo('SOCIO');
-    setFotoFinalBase64('');
-    setRawImageToCrop('');
-    setErrorMsg('');
+    setCodigo(''); setNombre(''); setApellidos(''); setTelefono(''); setEmail('');
+    setTipo('SOCIO'); setDiasCortesia(1); setFotoFinalBase64(''); setRawImageToCrop('');
+    setErrorMsg(''); setDuplicados([]);
   };
 
   const cargarCatalogos = async () => {
     try {
-      // 0. Cargar Siguiente Código Consecutivo sugerido
-      const resCod = await fetch('/api/iam/personas/siguiente-codigo');
-      if (resCod.ok) {
-        const dataCod = await resCod.json();
-        if (dataCod.siguienteCodigo) setCodigo(dataCod.siguienteCodigo);
+      const [rCod, rSuc, rPlanes, rNiv] = await Promise.all([
+        fetch('/api/iam/personas/siguiente-codigo').then(r => r.ok ? r.json() : null),
+        fetch('/api/access/sucursales').then(r => r.ok ? r.json() : []),
+        fetch('/api/gym/planes').then(r => r.ok ? r.json() : []),
+        fetch('/api/iam/niveles-acceso').then(r => r.ok ? r.json() : []),
+      ]);
+      if (rCod?.siguienteCodigo) setCodigo(rCod.siguienteCodigo);
+      if (rSuc?.length > 0) { setSucursales(rSuc); setSelectedSucursalId(rSuc[0].id); }
+      if (rPlanes?.length > 0) {
+        setPlanes(rPlanes);
+        setSelectedPlanId(rPlanes[0].id);
+        if (rPlanes[0].nivel_ids?.length > 0) setSelectedNivelIds(rPlanes[0].nivel_ids);
       }
-
-      // 1. Cargar Sucursales
-      const resSuc = await fetch('/api/access/sucursales');
-      if (resSuc.ok) {
-        const data = await resSuc.json();
-        setSucursales(data);
-        if (data.length > 0) setSelectedSucursalId(data[0].id);
-      }
-
-      // 2. Cargar Planes con sus niveles vinculados
-      const resPlanes = await fetch('/api/gym/planes');
-      if (resPlanes.ok) {
-        const data = await resPlanes.json();
-        setPlanes(data);
-        if (data.length > 0) {
-          setSelectedPlanId(data[0].id);
-          if (Array.isArray(data[0].nivel_ids) && data[0].nivel_ids.length > 0) {
-            setSelectedNivelIds(data[0].nivel_ids);
-          }
-        }
-      }
-
-      // 3. Cargar catálogo global de niveles disponibles
-      const resNiveles = await fetch('/api/iam/niveles-acceso');
-      if (resNiveles.ok) {
-        const data = await resNiveles.json();
-        setNivelesDisponibles(data);
-        // Si no había plan seleccionado, marcar el primero por defecto
-        if (selectedNivelIds.length === 0 && data.length > 0) {
-          setSelectedNivelIds([data[0].id]);
-        }
+      if (rNiv?.length > 0) {
+        setNivelesDisponibles(rNiv);
+        if (selectedNivelIds.length === 0) setSelectedNivelIds([rNiv[0].id]);
       }
     } catch (err) {
       console.error('Error cargando catálogos:', err);
@@ -149,8 +140,8 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !telefono.trim()) {
-      setErrorMsg('Nombre y teléfono son obligatorios');
+    if (!nombre.trim()) {
+      setErrorMsg('El nombre de la persona es obligatorio');
       return;
     }
 
@@ -167,11 +158,12 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
         codigo: codigo.trim() || undefined,
         nombre: nombre.trim(),
         apellidos: apellidos.trim(),
-        telefono: telefono.trim(),
+        telefono: telefono.trim() || undefined,
         email: email.trim(),
         tipo,
         sucursalId: selectedSucursalId ? Number(selectedSucursalId) : undefined,
         planId: tipo === 'SOCIO' && selectedPlanId ? Number(selectedPlanId) : undefined,
+        vigenciaDias: tipo === 'VISITANTE' ? diasCortesia : undefined,
         nivelIds: selectedNivelIds,
         fotoBase64: fotoFinalBase64 || undefined,
       };
@@ -279,15 +271,43 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
 
           {/* Columna Derecha: Datos, Categoría y Puertas (7 columnas) */}
           <div className="md:col-span-7 space-y-4">
-            {/* Conmutador Socio vs Staff */}
-            <div className="flex p-1 bg-theme-subtle rounded-xl border border-theme">
-              <button type="button" onClick={() => setTipo('SOCIO')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${tipo === 'SOCIO' ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow' : 'text-muted-theme hover:text-main-theme'}`}>
+            {/* Conmutador Socio vs Staff vs Cortesía */}
+            <div className="flex p-1 bg-theme-subtle rounded-xl border border-theme gap-1">
+              <button
+                type="button"
+                onClick={() => setTipo('SOCIO')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  tipo === 'SOCIO'
+                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
+                    : 'text-muted-theme hover:text-main-theme'
+                }`}
+              >
                 <UserCheck className="w-3.5 h-3.5" />
-                <span>Socio / Cliente</span>
+                <span>Socio</span>
               </button>
-              <button type="button" onClick={() => setTipo('EMPLEADO')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${tipo === 'EMPLEADO' ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow' : 'text-muted-theme hover:text-main-theme'}`}>
+              <button
+                type="button"
+                onClick={() => setTipo('EMPLEADO')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  tipo === 'EMPLEADO'
+                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
+                    : 'text-muted-theme hover:text-main-theme'
+                }`}
+              >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Staff / Empleado</span>
+                <span>Personal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipo('VISITANTE')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  tipo === 'VISITANTE'
+                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
+                    : 'text-muted-theme hover:text-main-theme'
+                }`}
+              >
+                <Ticket className="w-3.5 h-3.5" />
+                <span>Cortesía</span>
               </button>
             </div>
 
@@ -295,60 +315,38 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-4">
                 <label className="text-xs font-semibold text-muted-theme">ID / Código *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. 1002"
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono font-bold"
-                />
+                <input type="text" required placeholder="Ej. 1002" value={codigo} onChange={(e) => setCodigo(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono font-bold" />
               </div>
               <div className="col-span-4">
                 <label className="text-xs font-semibold text-muted-theme">Nombre *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. Juan"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-bold"
-                />
+                <input type="text" required placeholder="Ej. Juan" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-bold" />
               </div>
               <div className="col-span-4">
                 <label className="text-xs font-semibold text-muted-theme">Apellidos</label>
-                <input
-                  type="text"
-                  placeholder="Ej. Pérez López"
-                  value={apellidos}
-                  onChange={(e) => setApellidos(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-bold"
-                />
+                <input type="text" placeholder="Ej. Pérez López" value={apellidos} onChange={(e) => setApellidos(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-bold" />
               </div>
             </div>
 
+            {duplicados.length > 0 && (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-start gap-2 animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold">Posible cliente ya registrado:</p>
+                  <p className="text-[11px] text-muted-theme">
+                    {duplicados[0].nombre} {duplicados[0].apellidos || ''} (ID #{duplicados[0].id} - {duplicados[0].cortesiasUsadas}/3 cortesías usadas).
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-muted-theme">Teléfono Celular *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. 2281234567"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono"
-                />
+                <label className="text-xs font-semibold text-muted-theme">Teléfono Celular (Opcional)</label>
+                <input type="text" placeholder="Ej. 2281234567" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono" />
               </div>
-
               <div>
                 <label className="text-xs font-semibold text-muted-theme">Email (Opcional)</label>
-                <input
-                  type="email"
-                  placeholder="juan@correo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400"
-                />
+                <input type="email" placeholder="juan@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400" />
               </div>
             </div>
 
@@ -392,6 +390,28 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
               </div>
             )}
 
+            {/* Sección de Visitante: Pase de Cortesía */}
+            {tipo === 'VISITANTE' && (
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                    <Ticket className="w-3.5 h-3.5" />
+                    Pase de Cortesía (Prueba Gratuita)
+                  </label>
+                  <span className="text-[10px] text-cyan-300 font-mono font-bold">Vence hoy 23:59:59</span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-black/20 border border-cyan-500/20 flex items-center justify-between text-xs">
+                  <span className="text-main-theme font-medium flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                    1 Día de Acceso Total
+                  </span>
+                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-500/20 px-2 py-0.5 rounded">
+                    Máx. 3 vitalicias por persona
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Puertas / Niveles de Acceso Configurables */}
             <div className="space-y-2 pt-1 border-t border-theme">
               <div className="flex items-center justify-between">
@@ -400,7 +420,7 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
                   Puertas y Niveles Autorizados ({selectedNivelIds.length})
                 </label>
                 <span className="text-[10px] text-muted-theme">
-                  {tipo === 'SOCIO' ? 'Preseleccionados por el plan' : 'Acceso de Staff (1 año)'}
+                  {tipo === 'SOCIO' ? 'Preseleccionados por el plan' : tipo === 'VISITANTE' ? `Pase temporal (${diasCortesia} d)` : 'Acceso de Staff (1 año)'}
                 </span>
               </div>
 

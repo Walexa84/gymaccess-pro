@@ -79,11 +79,12 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
 
   const cargarPlanes = async () => {
     try {
-      const res = await fetch('/api/pos/planes');
+      const res = await fetch('/api/gym/planes');
       if (res.ok) {
         const data = await res.json();
-        setPlanes(data);
-        if (data.length > 0) setImportPlanId(data[0].id);
+        const lista = Array.isArray(data) ? data : [];
+        setPlanes(lista);
+        if (lista.length > 0) setImportPlanId(lista[0].id);
       }
     } catch (e) {
       console.error('Error cargando planes:', e);
@@ -109,7 +110,11 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
     setImportingPerson(p);
     setImportPhone(p.telefono || '');
     setImportTipo('SOCIO');
-    if (planes.length > 0) setImportPlanId(planes[0].id);
+    if (planes.length === 0) {
+      cargarPlanes();
+    } else {
+      setImportPlanId(planes[0].id);
+    }
   };
 
   const handleConfirmImport = async (e: React.FormEvent) => {
@@ -439,12 +444,13 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
                       <label className="text-xs font-semibold text-muted-theme">Plan Inicial</label>
                       <select
                         value={importPlanId}
-                        onChange={(e) => setImportPlanId(Number(e.target.value))}
-                        className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme font-bold"
+                        onChange={(e) => setImportPlanId(e.target.value ? Number(e.target.value) : '')}
+                        className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme font-bold focus:outline-none focus:border-cyan-400"
                       >
+                        <option value="">-- Sin Plan Inicial (Cobrar después) --</option>
                         {planes.map((pl) => (
                           <option key={pl.id} value={pl.id}>
-                            {pl.nombre} (${pl.precio})
+                            {pl.nombre} (${pl.precio} MXN - {pl.duracion_dias} días)
                           </option>
                         ))}
                       </select>
