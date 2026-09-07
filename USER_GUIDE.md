@@ -67,8 +67,10 @@ Pantalla de supervisión táctica que permanece activa en la computadora de rece
 2. **Botón `Apertura de Emergencia`:**
    - Botón rojo accesible que permite forzar un pulso de relevador en caso de evacuación o contingencia médica.
 3. **Métrica de Aforo en Sala:**
-   - Muestra el cálculo dinámico: `Entradas del Día - Salidas del Día = Aforo Actual`.
-4. **Feed Cronológico de Eventos:**
+   - Muestra el cálculo dinámico de socios y visitantes verificados: `Entradas Concedidas - Salidas = Aforo Actual`.
+4. **Métrica de Aperturas Manuales (Auditoría en Tiempo Real):**
+   - Contador táctico independiente ubicado al lado del aforo. Muestra cuántas aperturas por software se han ejecutado en la jornada y el operador responsable (`(Recepción)` o el usuario autenticado) obtenido 100% en vivo de la base de datos de auditoría.
+5. **Feed Cronológico de Eventos:**
    - Registro histórico de los últimos 20 accesos con timestamp al segundo, sentido, nombre, torniquete y estado.
 
 ---
