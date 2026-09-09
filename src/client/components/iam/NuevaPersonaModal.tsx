@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  X, Camera, Upload, Check, AlertCircle, Sparkles, Building2, 
-  CreditCard, ShieldCheck, UserCheck, RefreshCw, Layers, Edit3, Trash2, Ticket
+  X, Camera, Upload, CheckCircle2, AlertCircle, Sparkles, Building2, 
+  CreditCard, ShieldCheck, UserCheck, RefreshCw, Layers, Edit3, Ticket, Clock, HelpCircle
 } from 'lucide-react';
 import { WebcamModal } from '../WebcamModal';
 import { FaceCropperModal } from './FaceCropperModal';
@@ -43,6 +43,7 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
   const [guardando, setGuardando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [duplicados, setDuplicados] = useState<any[]>([]);
+  const [guiaStaffOpen, setGuiaStaffOpen] = useState(false);
 
   const { theme } = useTheme();
   const isCyber = theme === 'cyber';
@@ -71,7 +72,7 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
   const resetForm = () => {
     setCodigo(''); setNombre(''); setApellidos(''); setTelefono(''); setEmail('');
     setTipo('SOCIO'); setDiasCortesia(1); setFotoFinalBase64(''); setRawImageToCrop('');
-    setErrorMsg(''); setDuplicados([]);
+    setErrorMsg(''); setDuplicados([]); setGuiaStaffOpen(false);
   };
 
   const cargarCatalogos = async () => {
@@ -98,6 +99,17 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
     }
   };
 
+  const handleSelectTipo = (nuevoTipo: 'SOCIO' | 'EMPLEADO' | 'VISITANTE') => {
+    setTipo(nuevoTipo);
+    if (nuevoTipo === 'EMPLEADO') {
+      const staffIds = nivelesDisponibles.filter((n) => n.es_staff === 1).map((n) => n.id);
+      setSelectedNivelIds(staffIds.length > 0 ? staffIds : (nivelesDisponibles.length > 0 ? [nivelesDisponibles[0].id] : []));
+    } else if (nuevoTipo === 'SOCIO' && selectedPlanId) {
+      const plan = planes.find((p) => p.id === selectedPlanId);
+      if (plan?.nivel_ids?.length > 0) setSelectedNivelIds(plan.nivel_ids);
+    }
+  };
+
   // Al cambiar de plan, preseleccionar los niveles de acceso de ese plan
   const handlePlanChange = (planId: number) => {
     setSelectedPlanId(planId);
@@ -114,45 +126,27 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
     );
   };
 
-  // Subir archivo desde PC / Móvil
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      if (result) {
-        setRawImageToCrop(result);
-        setCropperOpen(true);
-      }
+      if (result) { setRawImageToCrop(result); setCropperOpen(true); }
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  // Foto tomada con Webcam
   const handleWebcamCapture = (base64: string) => {
-    setWebcamOpen(false);
-    setRawImageToCrop(base64);
-    setCropperOpen(true);
+    setWebcamOpen(false); setRawImageToCrop(base64); setCropperOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim()) {
-      setErrorMsg('El nombre de la persona es obligatorio');
-      return;
-    }
-
-    if (selectedNivelIds.length === 0) {
-      setErrorMsg('Debes seleccionar al menos una puerta o nivel de acceso');
-      return;
-    }
-
-    setGuardando(true);
-    setErrorMsg('');
-
+    if (!nombre.trim()) return setErrorMsg('El nombre de la persona es obligatorio');
+    if (selectedNivelIds.length === 0) return setErrorMsg('Debes seleccionar al menos una puerta o nivel de acceso');
+    setGuardando(true); setErrorMsg('');
     try {
       const payload = {
         codigo: codigo.trim() || undefined,
@@ -167,16 +161,13 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
         nivelIds: selectedNivelIds,
         fotoBase64: fotoFinalBase64 || undefined,
       };
-
       const res = await fetch('/api/iam/personas/enroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al enrolar persona');
-
       onSuccess(data.persona || data);
       onClose();
     } catch (err: any) {
@@ -241,23 +232,18 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
             <div className="w-full space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setWebcamOpen(true)} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-theme border border-theme hover:text-cyan-400 transition">
-                  <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Webcam</span>
+                  <Camera className="w-3.5 h-3.5 text-cyan-400" /> <span>Webcam</span>
                 </button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-theme border border-theme hover:text-cyan-400 transition">
-                  <Upload className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Subir Foto</span>
+                  <Upload className="w-3.5 h-3.5 text-cyan-400" /> <span>Subir Foto</span>
                 </button>
               </div>
-
               {fotoFinalBase64 && (
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setRawImageToCrop(fotoFinalBase64); setCropperOpen(true); }} className="flex-1 flex items-center justify-center gap-1 text-[11px] py-1 text-muted-theme hover:text-main-theme font-semibold">
                     <Edit3 className="w-3 h-3" /> Reajustar Recorte
                   </button>
-                  <button type="button" onClick={() => setFotoFinalBase64('')} className="text-[11px] py-1 text-red-400 hover:underline">
-                    Quitar
-                  </button>
+                  <button type="button" onClick={() => setFotoFinalBase64('')} className="text-[11px] py-1 text-red-400 hover:underline">Quitar</button>
                 </div>
               )}
             </div>
@@ -273,41 +259,14 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
           <div className="md:col-span-7 space-y-4">
             {/* Conmutador Socio vs Staff vs Cortesía */}
             <div className="flex p-1 bg-theme-subtle rounded-xl border border-theme gap-1">
-              <button
-                type="button"
-                onClick={() => setTipo('SOCIO')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  tipo === 'SOCIO'
-                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
-                    : 'text-muted-theme hover:text-main-theme'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Socio</span>
+              <button type="button" onClick={() => handleSelectTipo('SOCIO')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${tipo === 'SOCIO' ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow' : 'text-muted-theme hover:text-main-theme'}`}>
+                <UserCheck className="w-3.5 h-3.5" /> <span>Socio</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setTipo('EMPLEADO')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  tipo === 'EMPLEADO'
-                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
-                    : 'text-muted-theme hover:text-main-theme'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Personal</span>
+              <button type="button" onClick={() => handleSelectTipo('EMPLEADO')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${tipo === 'EMPLEADO' ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow' : 'text-muted-theme hover:text-main-theme'}`}>
+                <ShieldCheck className="w-3.5 h-3.5" /> <span>Personal</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setTipo('VISITANTE')}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  tipo === 'VISITANTE'
-                    ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow'
-                    : 'text-muted-theme hover:text-main-theme'
-                }`}
-              >
-                <Ticket className="w-3.5 h-3.5" />
-                <span>Cortesía</span>
+              <button type="button" onClick={() => handleSelectTipo('VISITANTE')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${tipo === 'VISITANTE' ? isCyber ? 'bg-volt text-black shadow' : 'bg-sport-orange text-white shadow' : 'text-muted-theme hover:text-main-theme'}`}>
+                <Ticket className="w-3.5 h-3.5" /> <span>Cortesía</span>
               </button>
             </div>
 
@@ -315,7 +274,7 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-4">
                 <label className="text-xs font-semibold text-muted-theme">ID / Código *</label>
-                <input type="text" required placeholder="Ej. 1002" value={codigo} onChange={(e) => setCodigo(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono font-bold" />
+                <input type="text" required placeholder="Ej. PER1002" value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())} className="w-full mt-1 px-3 py-2 rounded-xl bg-theme-subtle border border-theme text-xs text-main-theme focus:outline-none focus:border-cyan-400 font-mono font-bold" />
               </div>
               <div className="col-span-4">
                 <label className="text-xs font-semibold text-muted-theme">Nombre *</label>
@@ -412,6 +371,60 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
               </div>
             )}
 
+            {/* Sección de Personal / Empleado: Acceso de Staff */}
+            {tipo === 'EMPLEADO' && (
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/25 space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                    Acceso de Personal & Staff (Sin Cobro)
+                  </label>
+                  <span className="text-[10px] text-purple-300 font-mono font-bold bg-purple-500/20 px-2 py-0.5 rounded">
+                    Vigencia: 1 Año Renovable
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-black/30 border border-purple-500/20 flex items-center justify-between text-xs">
+                  <span className="text-main-theme font-medium flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-purple-400" />
+                    Horario regido por Teams
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const staff = nivelesDisponibles.filter(n => n.es_staff === 1).map(n => n.id);
+                      setSelectedNivelIds(staff.length > 0 ? staff : nivelesDisponibles.map(n => n.id));
+                    }}
+                    className="text-[10px] font-bold text-cyan-400 hover:underline"
+                  >
+                    ⭐ Reaplicar Puertas de Staff
+                  </button>
+                </div>
+                {guiaStaffOpen && (
+                  <div className="p-2.5 rounded-lg bg-black/50 border border-amber-500/30 text-[11px] text-amber-200 space-y-1">
+                    <p className="font-bold text-amber-300 flex items-center gap-1">
+                      <HelpCircle className="w-3 h-3 text-amber-400" /> Configuración de Horarios en Teams:
+                    </p>
+                    <p className="text-[10px] text-muted-theme">
+                      1. En <a href="https://ius.hikcentralconnect.com" target="_blank" rel="noreferrer" className="text-cyan-400 underline">ius.hikcentralconnect.com</a> ➔ <em>Control de Acceso ➔ Niveles</em> crea un nivel con tu horario (ej. 24/7).
+                    </p>
+                    <p className="text-[10px] text-muted-theme">
+                      2. En GymAccess Pro ve a <em>Configuración ➔ Niveles & Zonas</em>, pulsa <strong>🔄 Actualizar Zonas / Puertas</strong> y marca <strong>[⭐ Nivel de Staff]</strong>.
+                    </p>
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setGuiaStaffOpen(prev => !prev)}
+                    className="text-[10px] text-muted-theme hover:text-amber-400 flex items-center gap-1"
+                  >
+                    <HelpCircle className="w-3 h-3" />
+                    <span>{guiaStaffOpen ? 'Ocultar guía' : '¿Cómo crear horarios de Staff en Teams?'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Puertas / Niveles de Acceso Configurables */}
             <div className="space-y-2 pt-1 border-t border-theme">
               <div className="flex items-center justify-between">
@@ -461,24 +474,8 @@ export const NuevaPersonaModal: React.FC<NuevaPersonaModalProps> = ({ isOpen, on
 
       </div>
 
-      {/* Modal de Cámara Web */}
-      {webcamOpen && (
-        <WebcamModal
-          isOpen={webcamOpen}
-          onClose={() => setWebcamOpen(false)}
-          onCapture={handleWebcamCapture}
-        />
-      )}
-
-      {/* Recortador Biométrico con Silueta Facial */}
-      {cropperOpen && (
-        <FaceCropperModal
-          isOpen={cropperOpen}
-          imageSrc={rawImageToCrop}
-          onClose={() => setCropperOpen(false)}
-          onCropComplete={(cropped) => setFotoFinalBase64(cropped)}
-        />
-      )}
+      {webcamOpen && <WebcamModal isOpen={webcamOpen} onClose={() => setWebcamOpen(false)} onCapture={handleWebcamCapture} />}
+      {cropperOpen && <FaceCropperModal isOpen={cropperOpen} imageSrc={rawImageToCrop} onClose={() => setCropperOpen(false)} onCropComplete={(c) => setFotoFinalBase64(c)} />}
     </div>
   );
 };

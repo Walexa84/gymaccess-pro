@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Plus, Edit2, Trash2, ShieldCheck, Check, X, 
-  DoorOpen, Clock, DollarSign, Calendar, AlertCircle
+  DoorOpen, Clock, DollarSign, Calendar, AlertCircle, Cpu, Layers
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { BaseModal } from '../common/BaseModal';
 
 interface NivelAcceso {
   id: number;
@@ -288,155 +289,179 @@ export const PaquetesTab: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Creación / Edición de Paquete */}
-      {mostrarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-card-theme border border-theme rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-theme flex items-center justify-between bg-theme-subtle">
-              <h3 className="font-bold text-base text-main-theme flex items-center gap-2">
-                <Package className="w-5 h-5 text-volt" />
-                {editandoPlanId ? 'Editar Paquete Comercial' : 'Nuevo Paquete de Membresía'}
-              </h3>
-              <button
-                onClick={() => setMostrarModal(false)}
-                className="p-1 rounded-lg text-muted-theme hover:text-main-theme"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleGuardar} className="p-5 space-y-4">
-              {errorMsg && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{errorMsg}</span>
-                </div>
+      {/* Modal de Creación / Edición de Paquete con BaseModal */}
+      <BaseModal
+        isOpen={mostrarModal}
+        onClose={() => setMostrarModal(false)}
+        title={editandoPlanId ? 'Editar Paquete Comercial' : 'Nuevo Paquete de Membresía'}
+        subtitle="Configura precios, vigencias y puertas autorizadas en los checadores biométricos"
+        icon={<Package className="w-5 h-5 text-current" />}
+        size="2xl"
+        badgeText={editandoPlanId ? 'Plan Existente' : 'Nuevo'}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setMostrarModal(false)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-muted-theme hover:bg-theme-subtle transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleGuardar}
+              disabled={guardando}
+              className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition shadow-md flex items-center gap-2 ${
+                isCyber
+                  ? 'bg-volt text-black shadow-volt-glow hover:bg-volt/90'
+                  : 'bg-sport-orange text-white shadow-orange-glow hover:opacity-90'
+              } ${guardando ? 'opacity-50' : ''}`}
+            >
+              {guardando ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <span>Guardando y Propagando...</span>
+                </>
+              ) : (
+                <span>{editandoPlanId ? 'Guardar Cambios' : 'Crear Paquete'}</span>
               )}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleGuardar} className="space-y-4">
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
-              {/* Nombre del Plan */}
-              <div>
-                <label className="text-xs font-bold text-muted-theme block mb-1">
-                  Nombre del Paquete *
-                </label>
+          {/* Nombre del Plan */}
+          <div>
+            <label className="text-xs font-bold text-muted-theme block mb-1">
+              Nombre del Paquete *
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej. Mensualidad Regular, Pase VIP Alberca"
+              className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-theme-subtle border border-theme text-main-theme focus:border-accent-theme outline-none transition"
+              required
+            />
+          </div>
+
+          {/* Precio y Duración en 2 Columnas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-muted-theme block mb-1">
+                Precio (MXN) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-2.5 text-xs text-muted-theme font-bold">$</span>
                 <input
-                  type="text"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej. Mensualidad Regular, Pase VIP Alberca"
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-theme border border-theme text-main-theme focus:border-volt outline-none"
+                  type="number"
+                  step="0.01"
+                  value={precio}
+                  onChange={(e) => setPrecio(e.target.value)}
+                  placeholder="500.00"
+                  className="w-full pl-8 pr-3.5 py-2.5 rounded-xl text-xs bg-theme-subtle border border-theme text-main-theme focus:border-accent-theme outline-none transition"
                   required
                 />
               </div>
+            </div>
 
-              {/* Precio y Duración en 2 Columnas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-muted-theme block mb-1">
-                    Precio (MXN) *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-muted-theme font-bold">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={precio}
-                      onChange={(e) => setPrecio(e.target.value)}
-                      placeholder="500.00"
-                      className="w-full pl-7 pr-3 py-2 rounded-xl text-xs bg-theme border border-theme text-main-theme focus:border-volt outline-none"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-muted-theme block mb-1">
-                    Duración (Días) *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={duracionDias}
-                      onChange={(e) => setDuracionDias(e.target.value)}
-                      placeholder="30"
-                      className="w-full px-3 py-2 rounded-xl text-xs bg-theme border border-theme text-main-theme focus:border-volt outline-none"
-                      required
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-muted-theme">días</span>
-                  </div>
-                </div>
+            <div>
+              <label className="text-xs font-bold text-muted-theme block mb-1">
+                Duración (Días) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={duracionDias}
+                  onChange={(e) => setDuracionDias(e.target.value)}
+                  placeholder="30"
+                  className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-theme-subtle border border-theme text-main-theme focus:border-accent-theme outline-none transition"
+                  required
+                />
+                <span className="absolute right-3.5 top-2.5 text-xs text-muted-theme font-medium">días</span>
               </div>
+            </div>
+          </div>
 
-              {/* Selección de Puertas y Niveles de Acceso */}
-              <div>
-                <label className="text-xs font-bold text-muted-theme block mb-1.5">
-                  Puertas / Torniquetes Autorizados *
-                </label>
-                <p className="text-[11px] text-muted-theme mb-2">
-                  Marca qué accesos abrirá el checador para los socios que compren este paquete:
-                </p>
+          {/* Selección de Puertas y Niveles de Acceso - Grid de 2 columnas */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-main-theme flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-accent-theme" />
+                <span>Puertas / Torniquetes Autorizados *</span>
+              </label>
+              <span className="text-[11px] text-muted-theme font-mono">
+                {selectedNivelIds.length} de {nivelesDisponibles.length} seleccionados
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-theme mb-2.5">
+              Marca qué accesos abrirá el checador para los socios que compren este paquete:
+            </p>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {nivelesDisponibles.map((niv) => {
-                    const isSelected = selectedNivelIds.includes(niv.id);
-                    return (
-                      <label
-                        key={niv.id}
-                        onClick={() => toggleNivel(niv.id)}
-                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+              {nivelesDisponibles.map((niv) => {
+                const isSelected = selectedNivelIds.includes(niv.id);
+                return (
+                  <div
+                    key={niv.id}
+                    onClick={() => toggleNivel(niv.id)}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer select-none flex items-center justify-between gap-2.5 ${
+                      isSelected
+                        ? isCyber
+                          ? 'bg-volt/10 border-volt/60 shadow-sm shadow-volt/10'
+                          : 'bg-sport-orange/10 border-sport-orange/60 shadow-sm shadow-sport-orange/10'
+                        : 'bg-theme-subtle/50 border-theme/60 hover:border-theme hover:bg-theme-subtle opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition ${
                           isSelected
                             ? isCyber
-                              ? 'bg-volt/10 border-volt/50 text-main-theme'
-                              : 'bg-orange-50 border-sport-orange text-main-theme'
-                            : 'bg-theme border-theme text-muted-theme hover:text-main-theme'
+                              ? 'bg-volt border-volt text-black'
+                              : 'bg-sport-orange border-sport-orange text-white'
+                            : 'border-theme bg-card-theme'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            className="rounded text-volt focus:ring-0 cursor-pointer"
-                          />
-                          <div>
-                            <span className="font-bold text-xs block">{niv.nombre}</span>
-                            <span className="text-[10px] text-muted-theme font-mono">
-                              {niv.cuenta_nombre} • ID: {niv.cloud_level_id}
-                            </span>
-                          </div>
-                        </div>
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <div className="truncate">
+                        <span className="font-bold text-xs block text-main-theme truncate">
+                          {niv.nombre}
+                        </span>
+                        <span className="text-[10px] text-muted-theme block truncate font-mono">
+                          {niv.cuenta_nombre}
+                        </span>
+                      </div>
+                    </div>
 
-                        {isSelected && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Botones */}
-              <div className="pt-3 border-t border-theme flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-muted-theme hover:bg-theme"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition shadow-md ${
-                    isCyber
-                      ? 'bg-volt text-black shadow-volt-glow'
-                      : 'bg-sport-orange text-white shadow-orange-glow'
-                  } ${guardando ? 'opacity-50' : ''}`}
-                >
-                  {guardando ? 'Guardando...' : editandoPlanId ? 'Guardar Cambios' : 'Crear Paquete'}
-                </button>
-              </div>
-            </form>
+                    {isSelected && (
+                      <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Banner de protección Anti-Rate-Limit */}
+          {editandoPlanId && (
+            <div className="p-3 rounded-2xl bg-theme-subtle/60 border border-theme text-[11px] text-muted-theme flex items-start gap-2">
+              <Cpu className="w-4 h-4 text-accent-theme shrink-0 mt-0.5" />
+              <span>
+                Al guardar, los socios activos con este paquete se actualizarán automáticamente en segundo plano mediante la <strong>cola protegida anti-saturación</strong> de Hik-Connect Teams.
+              </span>
+            </div>
+          )}
+        </form>
+      </BaseModal>
     </div>
   );
 };

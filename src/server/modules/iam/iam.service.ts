@@ -16,16 +16,25 @@ export class IamService {
   /**
    * Listar personas con búsqueda y filtros
    */
-  public static getPersonas(q?: string, tipo?: string, estado?: string) {
+  public static getPersonas(q?: string, tipo?: string, estado?: string, vigencia?: string, biometria?: string) {
     let sql = `
       SELECT 
         p.*,
         m.fecha_fin as vigencia_fin,
-        m.estatus as membresia_estatus,
+        CASE 
+          WHEN m.id IS NULL THEN 'SIN_MEMBRESIA'
+          WHEN m.activa = 0 OR (m.fecha_fin IS NOT NULL AND m.fecha_fin < DATE('now', 'localtime')) THEN 'VENCIDA'
+          ELSE COALESCE(m.estatus, 'VIGENTE')
+        END as membresia_estatus,
         gp.nombre as plan_nombre,
         (SELECT COUNT(*) FROM gym_membresias cm JOIN gym_planes cp ON cp.id = cm.plan_id WHERE cm.persona_id = p.id AND (cp.nombre LIKE '%Cortesía%' OR cp.precio = 0)) as cortesias_usadas
       FROM personas p
-      LEFT JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
+      LEFT JOIN gym_membresias m ON m.id = (
+        SELECT id FROM gym_membresias 
+        WHERE persona_id = p.id 
+        ORDER BY activa DESC, fecha_fin DESC, id DESC 
+        LIMIT 1
+      )
       LEFT JOIN gym_planes gp ON gp.id = m.plan_id
       WHERE 1=1
     `;
@@ -48,6 +57,24 @@ export class IamService {
       }
     }
 
+    if (vigencia && vigencia !== 'TODOS') {
+      if (vigencia === 'VIGENTE') {
+        sql += ` AND (p.tipo = 'EMPLEADO' OR (m.activa = 1 AND (m.fecha_fin IS NULL OR m.fecha_fin >= DATE('now', 'localtime'))))`;
+      } else if (vigencia === 'POR_VENCER') {
+        sql += ` AND p.tipo != 'EMPLEADO' AND m.activa = 1 AND m.fecha_fin IS NOT NULL AND m.fecha_fin >= DATE('now', 'localtime') AND m.fecha_fin <= DATE('now', 'localtime', '+3 days')`;
+      } else if (vigencia === 'VENCIDA' || vigencia === 'VENCIDAS') {
+        sql += ` AND p.tipo != 'EMPLEADO' AND (m.id IS NULL OR m.activa = 0 OR (m.fecha_fin IS NOT NULL AND m.fecha_fin < DATE('now', 'localtime')))`;
+      }
+    }
+
+    if (biometria && biometria !== 'TODOS') {
+      if (biometria === 'SIN_FOTO') {
+        sql += ` AND (p.foto_url IS NULL OR p.foto_url = '')`;
+      } else if (biometria === 'CON_FOTO') {
+        sql += ` AND p.foto_url IS NOT NULL AND p.foto_url != ''`;
+      }
+    }
+
     if (q) {
       sql += ' AND (p.nombre LIKE ? OR p.apellidos LIKE ? OR p.telefono LIKE ? OR p.codigo LIKE ?)';
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
@@ -58,6 +85,48 @@ export class IamService {
   }
 
   /**
+   * Estadísticas en tiempo real para insignias del directorio
+   */
+  public static getStats() {
+    const row = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN p.activo = 1 THEN 1 ELSE 0 END) as activos,
+        SUM(CASE WHEN p.activo = 0 THEN 1 ELSE 0 END) as inactivos,
+        SUM(CASE WHEN p.activo = 1 AND p.tipo = 'SOCIO' THEN 1 ELSE 0 END) as socios,
+        SUM(CASE WHEN p.activo = 1 AND p.tipo = 'EMPLEADO' THEN 1 ELSE 0 END) as empleados,
+        SUM(CASE WHEN p.activo = 1 AND p.tipo = 'VISITANTE' THEN 1 ELSE 0 END) as visitantes,
+        SUM(CASE WHEN p.activo = 1 AND (p.tipo = 'VISITANTE' OR gp.nombre LIKE '%Cortesía%' OR (m.activa = 1 AND gp.precio = 0)) THEN 1 ELSE 0 END) as cortesias,
+        SUM(CASE WHEN p.activo = 1 AND (p.tipo = 'EMPLEADO' OR (m.activa = 1 AND (m.fecha_fin IS NULL OR m.fecha_fin >= DATE('now', 'localtime')))) THEN 1 ELSE 0 END) as vigentes,
+        SUM(CASE WHEN p.activo = 1 AND p.tipo != 'EMPLEADO' AND m.activa = 1 AND m.fecha_fin IS NOT NULL AND m.fecha_fin >= DATE('now', 'localtime') AND m.fecha_fin <= DATE('now', 'localtime', '+3 days') THEN 1 ELSE 0 END) as por_vencer,
+        SUM(CASE WHEN p.activo = 1 AND p.tipo != 'EMPLEADO' AND (m.id IS NULL OR m.activa = 0 OR (m.fecha_fin IS NOT NULL AND m.fecha_fin < DATE('now', 'localtime'))) THEN 1 ELSE 0 END) as vencidos,
+        SUM(CASE WHEN p.activo = 1 AND (p.foto_url IS NULL OR p.foto_url = '') THEN 1 ELSE 0 END) as sin_foto
+      FROM personas p
+      LEFT JOIN gym_membresias m ON m.id = (
+        SELECT id FROM gym_membresias 
+        WHERE persona_id = p.id 
+        ORDER BY activa DESC, fecha_fin DESC, id DESC 
+        LIMIT 1
+      )
+      LEFT JOIN gym_planes gp ON gp.id = m.plan_id
+    `).get() as any;
+
+    return {
+      total: row?.total || 0,
+      activos: row?.activos || 0,
+      inactivos: row?.inactivos || 0,
+      socios: row?.socios || 0,
+      empleados: row?.empleados || 0,
+      visitantes: row?.visitantes || 0,
+      cortesias: row?.cortesias || 0,
+      vigentes: row?.vigentes || 0,
+      porVencer: row?.por_vencer || 0,
+      vencidos: row?.vencidos || 0,
+      sinFoto: row?.sin_foto || 0
+    };
+  }
+
+  /**
    * Detalle completo de una persona con historial
    */
   public static getPersonaById(id: number) {
@@ -65,12 +134,21 @@ export class IamService {
       SELECT 
         p.*,
         m.fecha_fin as vigencia_fin,
-        m.estatus as membresia_estatus,
+        CASE 
+          WHEN m.id IS NULL THEN 'SIN_MEMBRESIA'
+          WHEN m.activa = 0 OR (m.fecha_fin IS NOT NULL AND m.fecha_fin < DATE('now', 'localtime')) THEN 'VENCIDA'
+          ELSE COALESCE(m.estatus, 'VIGENTE')
+        END as membresia_estatus,
         gp.nombre as plan_nombre,
         gp.id as plan_id,
         (SELECT COUNT(*) FROM gym_membresias cm JOIN gym_planes cp ON cp.id = cm.plan_id WHERE cm.persona_id = p.id AND (cp.nombre LIKE '%Cortesía%' OR cp.precio = 0)) as cortesias_usadas
       FROM personas p
-      LEFT JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
+      LEFT JOIN gym_membresias m ON m.id = (
+        SELECT id FROM gym_membresias 
+        WHERE persona_id = p.id 
+        ORDER BY activa DESC, fecha_fin DESC, id DESC 
+        LIMIT 1
+      )
       LEFT JOIN gym_planes gp ON gp.id = m.plan_id
       WHERE p.id = ?
     `).get(id);
@@ -129,7 +207,7 @@ export class IamService {
 
     const nextIdRow = db.prepare('SELECT MAX(id) as max_id FROM personas').get() as { max_id: number };
     const nextId = (nextIdRow?.max_id || 0) + 1;
-    const codigo = `PER-${1000 + nextId}`;
+    const codigo = `PER${1000 + nextId}`;
 
     const stmt = db.prepare(`
       INSERT INTO personas (codigo, nombre, apellidos, telefono, email, foto_url, tipo, notas)

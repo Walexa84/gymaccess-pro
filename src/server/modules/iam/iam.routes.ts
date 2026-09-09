@@ -3,12 +3,28 @@ import { IamService } from './iam.service.js';
 
 export const iamRouter = Router();
 
-// Listar personas
+// Listar personas con filtros avanzados
 iamRouter.get('/personas', (req: Request, res: Response) => {
   try {
-    const { q, tipo, estado } = req.query;
-    const personas = IamService.getPersonas(q as string, tipo as string, estado as string);
+    const { q, tipo, estado, vigencia, biometria } = req.query;
+    const personas = IamService.getPersonas(
+      q as string, 
+      tipo as string, 
+      estado as string,
+      vigencia as string,
+      biometria as string
+    );
     res.json(personas);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Métricas y conteos en tiempo real para insignias del directorio
+iamRouter.get('/personas/stats', (_req: Request, res: Response) => {
+  try {
+    const stats = IamService.getStats();
+    res.json(stats);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -74,18 +90,61 @@ iamRouter.post('/personas/enroll', async (req: Request, res: Response) => {
   }
 });
 
+// Despacho masivo de socios y staff activos a la cola de sincronización de checadores
+iamRouter.post('/personas/sync-all-to-checador', async (_req: Request, res: Response) => {
+  try {
+    const { db } = await import('../../db/database.js');
+    const { AccessQueueService } = await import('../../services/accessQueue.service.js');
+    const activePersonas = db.prepare(`
+      SELECT DISTINCT p.id 
+      FROM personas p
+      LEFT JOIN gym_membresias m ON m.persona_id = p.id AND m.activa = 1
+      WHERE p.activo = 1 AND (p.tipo = 'EMPLEADO' OR m.id IS NOT NULL)
+      ORDER BY p.id ASC
+    `).all() as { id: number }[];
+
+    const ids = activePersonas.map(p => p.id);
+    const queueRes = AccessQueueService.enqueuePersonas(ids);
+    res.json({
+      success: true,
+      count: ids.length,
+      totalPending: queueRes.totalPending,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Catálogo de niveles de acceso disponibles para checkboxes
 iamRouter.get('/niveles-acceso', async (_req: Request, res: Response) => {
   try {
     const { db } = await import('../../db/database.js');
     const rows = db.prepare(`
-      SELECT n.id, n.nombre, n.cloud_level_id, n.cuenta_hct_id, c.nombre as cuenta_nombre
+      SELECT n.id, n.nombre, n.cloud_level_id, n.cuenta_hct_id, n.es_staff, c.nombre as cuenta_nombre
       FROM niveles_acceso n
       LEFT JOIN cuentas_hct c ON c.id = n.cuenta_hct_id
       WHERE n.activo = 1
       ORDER BY n.id ASC
     `).all();
     res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Conmutar etiqueta de Staff en un nivel de acceso
+iamRouter.patch('/niveles-acceso/:id/toggle-staff', async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { db } = await import('../../db/database.js');
+    const row = db.prepare('SELECT id, es_staff FROM niveles_acceso WHERE id = ?').get(id) as any;
+    if (!row) {
+      res.status(404).json({ error: 'Nivel de acceso no encontrado' });
+      return;
+    }
+    const nuevoValor = (req.body.es_staff !== undefined) ? (req.body.es_staff ? 1 : 0) : (row.es_staff ? 0 : 1);
+    db.prepare('UPDATE niveles_acceso SET es_staff = ? WHERE id = ?').run(nuevoValor, id);
+    res.json({ success: true, id, es_staff: nuevoValor });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

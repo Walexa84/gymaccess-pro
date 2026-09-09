@@ -264,7 +264,16 @@ export class FichaService {
       fechaFin.setHours(23, 59, 59);
     }
 
-    const startDateIso = this.formatIsoTz(hoy);
+    let startDate = new Date();
+    if (persona.fecha_inicio) {
+      const partsS = persona.fecha_inicio.split('T')[0].split('-');
+      startDate = new Date(Number(partsS[0]), Number(partsS[1]) - 1, Number(partsS[2]), 0, 0, 0);
+    }
+    if (startDate.getTime() >= fechaFin.getTime()) {
+      startDate = new Date(fechaFin.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    const startDateIso = this.formatIsoTz(startDate);
     const endDateIso = this.formatIsoTz(fechaFin);
     const photoBase64 = this.getBase64FromLocalPhoto(persona.foto_url);
 
@@ -275,145 +284,226 @@ export class FichaService {
       WHERE n.id IN (${placeholders}) AND n.activo = 1
     `).all(...(nivelesIds || [])) as any[] : [];
 
-    const cloudLevelIds = niveles.map(n => n.cloud_level_id).filter(Boolean);
-    const cuentaId = niveles[0]?.cuenta_hct_id || 1;
-    const config = HikConnectService.getConfig(cuentaId);
-    const token = await HikConnectService.getAccessToken(cuentaId);
+    // Agrupar niveles por cuenta de Teams para orquestación Multi-Tenant
+    const byCuenta = new Map<number, any[]>();
+    for (const niv of niveles) {
+      const cId = niv.cuenta_hct_id || 1;
+      const arr = byCuenta.get(cId) || [];
+      arr.push(niv);
+      byCuenta.set(cId, arr);
+    }
+    if (byCuenta.size === 0) {
+      byCuenta.set(1, []);
+    }
 
     const fullName = `${persona.nombre} ${persona.apellidos || ''}`.trim();
-    let cloudPersonId = persona.hik_person_id;
-    let teamsSuccess = false;
-    let errorMessage: string | null = null;
-
-    const personCode = (persona.codigo || '').trim() || String(1000 + persona.id);
+    const rawCode = (persona.codigo || '').replace(/[^a-zA-Z0-9]/g, '');
+    const personCode = rawCode.length > 0 ? rawCode : String(1000 + persona.id);
     const safeLastName = (persona.apellidos && persona.apellidos.trim().length > 0) ? persona.apellidos.trim() : '.';
     const safeFirstName = (persona.nombre && persona.nombre.trim().length > 0) ? persona.nombre.trim() : 'Socio';
 
-    if (!cloudPersonId) {
-      const quickAddPayload: any = {
-        personInfo: {
-          personCode,
-          firstName: safeFirstName,
-          lastName: safeLastName,
-          gender: 1,
-          groupId: '1',
-          phoneNo: (persona.telefono || '').trim() || undefined,
-          startDate: startDateIso,
-          endDate: endDateIso,
-        }
-      };
-      if (photoBase64) {
-        quickAddPayload.photoData = photoBase64;
-        quickAddPayload.photoBase64 = photoBase64;
-      }
-      if (cloudLevelIds.length > 0) quickAddPayload.accessLevelIds = cloudLevelIds;
+    let allTeamsSuccess = true;
+    let mainCloudPersonId = persona.hik_person_id;
+    const errors: string[] = [];
 
-      const startTime = performance.now();
-      const res = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/quick/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Token': token },
-        body: JSON.stringify(quickAddPayload),
-      });
-
-      const latencyMs = Math.round(performance.now() - startTime);
-      const data = await res.json();
-
-      TelemetryService.log({
-        cuenta_id: cuentaId,
-        cuenta_nombre: config.nombre,
-        tipo_accion: 'GESTION_PERSONAS',
-        recurso_nombre: fullName,
-        latencia_ms: latencyMs,
-        http_status: res.status,
-        hct_error_code: data.errorCode,
-        hct_message: data.message || 'Forzar sincronización (Quick Add) en Teams',
-        exito: data.errorCode === '0',
-      });
-
-      if (data.errorCode === '0' && data.data?.personId) {
-        cloudPersonId = String(data.data.personId);
-        teamsSuccess = true;
-        db.prepare('UPDATE personas SET hik_person_id = ? WHERE id = ?').run(cloudPersonId, personaId);
-      } else {
-        errorMessage = TeamsErrorTranslator.translate(data.errorCode, data.message);
-      }
-    } else {
+    for (const [cuentaId, nivelesDeCuenta] of byCuenta.entries()) {
       try {
-        const updateRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Token': token },
-          body: JSON.stringify({
-            personId: cloudPersonId,
-            personCode,
-            firstName: safeFirstName,
-            lastName: safeLastName,
-            gender: 1,
-            groupId: '684236911358785536',
-            startDate: startDateIso,
-            endDate: endDateIso,
-          }),
-        });
-        const updateData = await updateRes.json();
+        const config = HikConnectService.getConfig(cuentaId);
+        const token = await HikConnectService.getAccessToken(cuentaId);
+        const cloudLevelIds = nivelesDeCuenta.map((n: any) => n.cloud_level_id).filter(Boolean);
 
-        let photoOk = true;
-        if (photoBase64) {
-          const photoRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/photo`, {
+        // Identificar si la persona ya tiene ID en esta cuenta de Teams
+        let cloudPersonIdParaCuenta: string | null = null;
+        try {
+          const mapping = db.prepare('SELECT cloud_person_id FROM persona_cuentas_hct WHERE persona_id = ? AND cuenta_hct_id = ?').get(personaId, cuentaId) as { cloud_person_id: string } | undefined;
+          if (mapping?.cloud_person_id) {
+            cloudPersonIdParaCuenta = mapping.cloud_person_id;
+          }
+        } catch {}
+
+        if (!cloudPersonIdParaCuenta && cuentaId === 1 && persona.hik_person_id) {
+          cloudPersonIdParaCuenta = persona.hik_person_id;
+        }
+
+        let cuentaOk = false;
+
+        if (!cloudPersonIdParaCuenta) {
+          // Alta Rápida (Quick Add) en esta cuenta específica de Teams
+          const quickAddPayload: any = {
+            personInfo: {
+              personCode,
+              firstName: safeFirstName,
+              lastName: safeLastName,
+              gender: 1,
+              groupId: '1',
+              phoneNo: (persona.telefono || '').trim() || undefined,
+              startDate: startDateIso,
+              endDate: endDateIso,
+            }
+          };
+          if (photoBase64) {
+            quickAddPayload.photoData = photoBase64;
+            quickAddPayload.photoBase64 = photoBase64;
+          }
+          if (cloudLevelIds.length > 0) quickAddPayload.accessLevelIds = cloudLevelIds;
+
+          const startTime = performance.now();
+          const res = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/quick/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Token': token },
+            body: JSON.stringify(quickAddPayload),
+          });
+          const latencyMs = Math.round(performance.now() - startTime);
+          const data = await res.json();
+
+          TelemetryService.log({
+            cuenta_id: cuentaId,
+            cuenta_nombre: config.nombre,
+            tipo_accion: 'GESTION_PERSONAS',
+            recurso_nombre: fullName,
+            latencia_ms: latencyMs,
+            http_status: res.status,
+            hct_error_code: data.errorCode,
+            hct_message: data.message || `Alta rápida en [${config.nombre}]`,
+            exito: data.errorCode === '0',
+          });
+
+          if (data.errorCode === '0' && data.data?.personId) {
+            cloudPersonIdParaCuenta = String(data.data.personId);
+            cuentaOk = true;
+            try {
+              db.prepare('INSERT OR REPLACE INTO persona_cuentas_hct (persona_id, cuenta_hct_id, cloud_person_id) VALUES (?, ?, ?)').run(personaId, cuentaId, cloudPersonIdParaCuenta);
+            } catch {}
+            if (cuentaId === 1 || !mainCloudPersonId) {
+              mainCloudPersonId = cloudPersonIdParaCuenta;
+              db.prepare('UPDATE personas SET hik_person_id = ? WHERE id = ?').run(mainCloudPersonId, personaId);
+            }
+          } else if (data.errorCode === 'CCF038024') {
+            // Ya existía en esta cuenta de Teams; vincular su ID y asociar niveles
+            try {
+              const { TeamsPersonService } = await import('./teamsPerson.service.js');
+              const tData = await TeamsPersonService.getPersonsFromTeams(cuentaId);
+              const found = tData.persons?.find((p: any) => p.personCode === personCode || p.fullName === fullName);
+              if (found?.personId) {
+                cloudPersonIdParaCuenta = String(found.personId);
+                cuentaOk = true;
+                db.prepare('INSERT OR REPLACE INTO persona_cuentas_hct (persona_id, cuenta_hct_id, cloud_person_id) VALUES (?, ?, ?)').run(personaId, cuentaId, cloudPersonIdParaCuenta);
+                if (cloudLevelIds.length > 0) {
+                  await fetch(`${config.baseUrl}/hccgw/acspm/v1/accesslevel/person/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Token: token },
+                    body: JSON.stringify({
+                      personList: [{ personId: cloudPersonIdParaCuenta, accessLevelIdList: cloudLevelIds }],
+                    }),
+                  });
+                }
+              }
+            } catch {}
+          } else {
+            errors.push(`[${config.nombre}]: ${data.message || data.errorCode}`);
+            allTeamsSuccess = false;
+          }
+        } else {
+          // Actualización en esta cuenta
+          const updateRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Token': token },
             body: JSON.stringify({
-              personId: cloudPersonId,
-              photoData: photoBase64,
-              photoBase64: photoBase64,
+              personId: cloudPersonIdParaCuenta,
+              personCode,
+              firstName: safeFirstName,
+              lastName: safeLastName,
+              gender: 1,
+              groupId: '1',
+              startDate: startDateIso,
+              endDate: endDateIso,
             }),
           });
-          const photoResult = await photoRes.json();
-          photoOk = photoResult.errorCode === '0';
+          const updateData = await updateRes.json();
+          let finalUpdateData = updateData;
+          if (finalUpdateData.errorCode === 'CCF000001') {
+            try {
+              const { TeamsPersonService } = await import('./teamsPerson.service.js');
+              const tData = await TeamsPersonService.getPersonsFromTeams(cuentaId);
+              const foundInTeams = tData.persons?.find((p: any) => String(p.personId) === String(cloudPersonIdParaCuenta));
+              if (foundInTeams?.personCode) {
+                const retryRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/update`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Token': token },
+                  body: JSON.stringify({
+                    personId: cloudPersonIdParaCuenta,
+                    personCode: foundInTeams.personCode,
+                    firstName: safeFirstName,
+                    lastName: safeLastName,
+                    gender: 1,
+                    groupId: '1',
+                    startDate: startDateIso,
+                    endDate: endDateIso,
+                  }),
+                });
+                finalUpdateData = await retryRes.json();
+              }
+            } catch {}
+          }
+
+          let photoOk = true;
+          if (photoBase64) {
+            const photoRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/photo`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Token': token },
+              body: JSON.stringify({
+                personId: cloudPersonIdParaCuenta,
+                photoData: photoBase64,
+                photoBase64: photoBase64,
+              }),
+            });
+            const photoResult = await photoRes.json();
+            photoOk = photoResult.errorCode === '0';
+          }
+
+          cuentaOk = finalUpdateData.errorCode === '0' && photoOk;
+          if (cuentaOk) {
+            if (cloudLevelIds.length > 0) {
+              try {
+                await fetch(`${config.baseUrl}/hccgw/acspm/v1/accesslevel/person/add`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Token: token },
+                  body: JSON.stringify({
+                    personList: [{ personId: cloudPersonIdParaCuenta, accessLevelIdList: cloudLevelIds }],
+                  }),
+                });
+              } catch (lErr: any) {
+                console.warn(`⚠️ Error asociando nivel en [${config.nombre}]:`, lErr.message);
+              }
+            }
+          } else {
+            errors.push(`[${config.nombre}]: ${finalUpdateData.message || finalUpdateData.errorCode}`);
+            allTeamsSuccess = false;
+          }
         }
 
-        teamsSuccess = updateData.errorCode === '0' && photoOk;
-        if (!teamsSuccess) {
-          const failCode = updateData.errorCode !== '0' ? updateData.errorCode : '0x6001';
-          const failMsg = updateData.message || 'Error al actualizar persona o fotografía en Teams';
-          errorMessage = TeamsErrorTranslator.translate(failCode, failMsg);
+        if (cuentaOk) {
+          for (const niv of nivelesDeCuenta) {
+            db.prepare(`
+              INSERT OR REPLACE INTO persona_autorizaciones_acceso 
+              (persona_id, nivel_id, fecha_inicio, fecha_fin, estado_sincronizacion)
+              VALUES (?, ?, ?, ?, 'SINCRONIZADO')
+            `).run(personaId, niv.id, hoy.toISOString(), fechaFin.toISOString());
+          }
         }
-      } catch (err: any) {
-        errorMessage = err.message;
-      }
-    }
-
-    if (teamsSuccess) {
-      // Asignar niveles de acceso individuales por persona a la nube de Teams
-      if (cloudLevelIds.length > 0) {
-        try {
-          await fetch(`${config.baseUrl}/hccgw/acspm/v1/accesslevel/person/add`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Token: token },
-            body: JSON.stringify({
-              personList: [{ personId: cloudPersonId, accessLevelIdList: cloudLevelIds }],
-            }),
-          });
-        } catch (lErr: any) {
-          console.warn('⚠️ Error asociando nivel en Teams:', lErr.message);
-        }
-      }
-
-      db.prepare('DELETE FROM persona_autorizaciones_acceso WHERE persona_id = ?').run(personaId);
-      for (const niv of niveles) {
-        db.prepare(`
-          INSERT INTO persona_autorizaciones_acceso 
-          (persona_id, nivel_id, fecha_inicio, fecha_fin, estado_sincronizacion)
-          VALUES (?, ?, ?, ?, 'SINCRONIZADO')
-        `).run(personaId, niv.id, hoy.toISOString(), fechaFin.toISOString());
+      } catch (cErr: any) {
+        errors.push(`Cuenta ${cuentaId}: ${cErr.message}`);
+        allTeamsSuccess = false;
       }
     }
 
     return {
-      success: teamsSuccess,
-      hik_person_id: cloudPersonId,
-      teamsSynced: teamsSuccess,
-      teamsError: errorMessage,
+      success: allTeamsSuccess,
+      hik_person_id: mainCloudPersonId,
+      teamsSynced: allTeamsSuccess,
+      teamsError: errors.length > 0 ? errors.join('; ') : null,
       endDateIso,
-      nivelesSincronizados: niveles.map(n => n.nombre),
+      nivelesSincronizados: niveles.map((n: any) => n.nombre),
     };
   }
 
@@ -474,66 +564,9 @@ export class FichaService {
     let teamsError: string | null = null;
 
     if (persona.hik_person_id) {
-      try {
-        const config = HikConnectService.getConfig(1);
-        const token = await HikConnectService.getAccessToken(1);
-
-        const safeLastName = apellidos.length > 0 ? apellidos : '.';
-
-        const hoy = new Date();
-        let fechaFin = new Date();
-        if (persona.vigencia_fin) {
-          const parts = persona.vigencia_fin.split('T')[0].split('-');
-          fechaFin = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 23, 59, 59);
-        } else {
-          fechaFin.setDate(hoy.getDate() + 30);
-          fechaFin.setHours(23, 59, 59);
-        }
-
-        const startDateIso = this.formatIsoTz(hoy);
-        const endDateIso = this.formatIsoTz(fechaFin);
-
-        const startTime = performance.now();
-        const updateRes = await fetch(`${config.baseUrl}/hccgw/person/v1/persons/update`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Token': token },
-          body: JSON.stringify({
-            personId: persona.hik_person_id,
-            personCode: codigo,
-            firstName: nombre,
-            lastName: safeLastName,
-            gender: 1,
-            groupId: '684236911358785536',
-            phoneNo: telefono || undefined,
-            email: email || undefined,
-            startDate: startDateIso,
-            endDate: endDateIso,
-          }),
-        });
-
-        const latencyMs = Math.round(performance.now() - startTime);
-        const updateData = await updateRes.json();
-
-        TelemetryService.log({
-          cuenta_id: 1,
-          cuenta_nombre: config.nombre,
-          tipo_accion: 'GESTION_PERSONAS',
-          recurso_nombre: `${nombre} ${apellidos}`.trim(),
-          latencia_ms: latencyMs,
-          http_status: updateRes.status,
-          hct_error_code: updateData.errorCode,
-          hct_message: updateData.message || 'Actualización de datos generales en Teams',
-          exito: updateData.errorCode === '0',
-        });
-
-        if (updateData.errorCode === '0') {
-          teamsSynced = true;
-        } else {
-          teamsError = TeamsErrorTranslator.translate(updateData.errorCode, updateData.message);
-        }
-      } catch (err: any) {
-        teamsError = err.message;
-      }
+      const syncResult = await this.sincronizarConChecador(personaId);
+      teamsSynced = syncResult.teamsSynced;
+      teamsError = syncResult.teamsError;
     }
 
     return {

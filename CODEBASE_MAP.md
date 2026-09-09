@@ -58,7 +58,9 @@ Integracion GYMS/
 │   │   │       └── pos.routes.ts      # Endpoints REST (/api/pos/*)
 │   │   │
 │   │   ├── services/            # Controladores de Hardware y Utilidades
-│   │   │   ├── hikconnect.ts         # Cliente Hik-Connect Teams OpenAPI con caché de tokens Multi-Tenant
+│   │   │   ├── hikconnect.ts         # Fachada liviana Hik-Connect Teams y gestión de cuentas (<160 líneas)
+│   │   │   ├── hikconnectClient.ts   # Cliente HTTP especializado OpenAPI V2.11 (tokens, telemetría, 7s timeout)
+│   │   │   ├── hikconnectSync.ts     # Sincronizador de recursos de Teams hacia SQLite (dispositivos, niveles, puertas)
 │   │   │   ├── hikvisionIsapi.ts     # Driver ISAPI HTTP Digest nativo para checadores LAN directos
 │   │   │   ├── hikconnectDriver.ts   # Adaptador IHardwareDriver para Teams Cloud
 │   │   │   ├── hikcentralProDriver.ts# Driver para servidores Artemis On-Premise

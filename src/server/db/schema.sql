@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS niveles_acceso (
   nombre TEXT NOT NULL,
   descripcion TEXT,
   cloud_level_id TEXT,
+  es_staff INTEGER DEFAULT 0,
   activo INTEGER DEFAULT 1
 );
 
@@ -135,6 +136,14 @@ CREATE TABLE IF NOT EXISTS persona_autorizaciones_acceso (
   ultimo_error TEXT,
   actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(persona_id, nivel_id)
+);
+
+CREATE TABLE IF NOT EXISTS persona_cuentas_hct (
+  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+  cuenta_hct_id INTEGER NOT NULL REFERENCES cuentas_hct(id) ON DELETE CASCADE,
+  cloud_person_id TEXT NOT NULL,
+  creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (persona_id, cuenta_hct_id)
 );
 
 CREATE TABLE IF NOT EXISTS eventos_acceso (

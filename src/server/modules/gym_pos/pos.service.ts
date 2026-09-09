@@ -1,5 +1,6 @@
 import { db } from '../../db/database.js';
 import { AccessService } from '../access/access.service.js';
+import { AccessQueueService } from '../../services/accessQueue.service.js';
 
 export interface CobroInput {
   personaId: number;
@@ -66,15 +67,48 @@ export class PosService {
       WHERE id = ?
     `).run(data.nombre || null, data.duracion_dias || null, data.precio || null, data.nivel_acceso_id || null, id);
 
+    let personasImpactadas = 0;
     if (Array.isArray(data.nivelIds)) {
       db.prepare('DELETE FROM gym_plan_niveles WHERE plan_id = ?').run(id);
       const ins = db.prepare('INSERT OR IGNORE INTO gym_plan_niveles (plan_id, nivel_id) VALUES (?, ?)');
       for (const nId of data.nivelIds) {
         ins.run(id, Number(nId));
       }
+
+      // Detectar socios activos con este paquete para propagar los nuevos niveles
+      const activeMembers = db.prepare(`
+        SELECT DISTINCT m.persona_id, m.fecha_inicio, m.fecha_fin
+        FROM gym_membresias m
+        JOIN personas p ON p.id = m.persona_id
+        WHERE m.plan_id = ? AND m.activa = 1 AND m.fecha_fin >= DATE('now')
+      `).all(id) as Array<{ persona_id: number; fecha_inicio: string; fecha_fin: string }>;
+
+      if (activeMembers.length > 0) {
+        personasImpactadas = activeMembers.length;
+        const delAuth = db.prepare('DELETE FROM persona_autorizaciones_acceso WHERE persona_id = ?');
+        const insAuth = db.prepare(`
+          INSERT INTO persona_autorizaciones_acceso
+          (persona_id, nivel_id, fecha_inicio, fecha_fin, estado_sincronizacion)
+          VALUES (?, ?, ?, ?, 'PENDIENTE')
+        `);
+
+        db.exec('BEGIN');
+        for (const member of activeMembers) {
+          delAuth.run(member.persona_id);
+          for (const nId of data.nivelIds) {
+            insAuth.run(member.persona_id, Number(nId), member.fecha_inicio, member.fecha_fin);
+          }
+        }
+        db.exec('COMMIT');
+
+        // Encolar en segundo plano con limitador de tasa anti-bloqueo para Hik-Connect Teams
+        AccessQueueService.enqueuePersonas(activeMembers.map(m => m.persona_id));
+        console.log(`[PosService] 📡 Propagación iniciada para plan #${id}: ${personasImpactadas} socios activos encolados.`);
+      }
     }
 
-    return this.getPlanes().find((p) => p.id === id) || db.prepare('SELECT * FROM gym_planes WHERE id = ?').get(id);
+    const planActualizado = this.getPlanes().find((p) => p.id === id) || db.prepare('SELECT * FROM gym_planes WHERE id = ?').get(id);
+    return { ...planActualizado, personasImpactadas };
   }
 
   public static deletePlan(id: number) {

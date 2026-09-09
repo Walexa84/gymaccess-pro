@@ -41,9 +41,6 @@ export class SyncWorker {
 
       for (const item of vencidos) {
         try {
-          const empId = item.hik_person_id || item.telefono.replace(/\D/g, '').slice(-10) || String(item.id);
-          await HardwareManager.setPersonAccess(empId, false);
-
           db.exec('BEGIN');
           db.prepare(`UPDATE gym_membresias SET activa = 0, estatus = 'VENCIDA' WHERE id = ?`).run(item.membresia_id);
           db.prepare(`
@@ -53,10 +50,21 @@ export class SyncWorker {
           db.exec('COMMIT');
 
           revocados++;
-          console.log(`🚫 Acceso revocado en hardware a: ${item.nombre} (Venció el ${item.fecha_fin})`);
+          console.log(`🚫 Membresía expirada desactivada en BD: ${item.nombre} (Venció el ${item.fecha_fin})`);
+
+          // Sincronización desacoplada con hardware (no bloquea el estado local de BD)
+          const empId = item.hik_person_id || (item.telefono ? item.telefono.replace(/\D/g, '').slice(-10) : null) || String(item.id);
+          if (empId) {
+            try {
+              await HardwareManager.setPersonAccess(empId, false);
+            } catch (hwErr: any) {
+              console.warn(`⚠️ Aviso al revocar acceso en hardware a ${item.nombre}:`, hwErr.message);
+            }
+          }
         } catch (err: any) {
+          try { db.exec('ROLLBACK'); } catch {}
           errores++;
-          console.error(`❌ Error revocando acceso a ${item.nombre}:`, err.message);
+          console.error(`❌ Error procesando vencimiento de ${item.nombre}:`, err.message);
         }
       }
 

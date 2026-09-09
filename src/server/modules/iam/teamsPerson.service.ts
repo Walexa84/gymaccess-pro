@@ -196,7 +196,7 @@ export class TeamsPersonService {
     try {
       const nextIdRow = db.prepare('SELECT MAX(id) as max_id FROM personas').get() as { max_id: number };
       const nextId = (nextIdRow?.max_id || 0) + 1;
-      const codigo = `PER-${1000 + nextId}`;
+      const codigo = `PER${1000 + nextId}`;
 
       const stmt = db.prepare(`
         INSERT INTO personas (codigo, nombre, apellidos, telefono, email, foto_url, tipo, hik_person_id)
@@ -452,7 +452,7 @@ export class TeamsPersonService {
                 firstName: safeFirstName,
                 lastName: safeLastName,
                 gender: 1,
-                groupId: '684236911358785536',
+                groupId: '1',
                 phoneNo: input.telefono?.trim() || undefined,
                 startDate: startDateIso,
                 endDate: endDateIso,
@@ -482,6 +482,7 @@ export class TeamsPersonService {
             if (data.errorCode === '0' && data.data?.personId) {
               cloudPersonId = String(data.data.personId);
               teamsSyncSuccess = true;
+              db.prepare('INSERT OR REPLACE INTO persona_cuentas_hct (persona_id, cuenta_hct_id, cloud_person_id) VALUES (?, ?, ?)').run(newPersonaId, cuentaId, cloudPersonId);
 
               // Concesión individual de nivel de acceso por persona
               if (cloudLevelIds.length > 0) {

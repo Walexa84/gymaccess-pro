@@ -68,10 +68,25 @@ export function initDatabase() {
   const schema = fs.readFileSync(schemaPath, 'utf-8');
   db.exec(schema);
 
-  // Actualizaciones de columnas seguras (idempotentes para esquemas existentes)
   try { db.exec(`ALTER TABLE dispositivos ADD COLUMN cuenta_hct_id INTEGER REFERENCES cuentas_hct(id) ON DELETE SET NULL;`); } catch {}
   try { db.exec(`ALTER TABLE torniquetes ADD COLUMN cloud_resource_id TEXT;`); } catch {}
   try { db.exec(`ALTER TABLE niveles_acceso ADD COLUMN cuenta_hct_id INTEGER REFERENCES cuentas_hct(id) ON DELETE SET NULL;`); } catch {}
+  try { db.exec(`ALTER TABLE niveles_acceso ADD COLUMN es_staff INTEGER DEFAULT 0;`); } catch {}
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS persona_cuentas_hct (
+        persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
+        cuenta_hct_id INTEGER NOT NULL REFERENCES cuentas_hct(id) ON DELETE CASCADE,
+        cloud_person_id TEXT NOT NULL,
+        creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (persona_id, cuenta_hct_id)
+      );
+    `);
+    db.prepare(`
+      INSERT OR IGNORE INTO persona_cuentas_hct (persona_id, cuenta_hct_id, cloud_person_id)
+      SELECT id, 1, hik_person_id FROM personas WHERE hik_person_id IS NOT NULL AND hik_person_id != ''
+    `).run();
+  } catch {}
 
   // Migración segura: hacer telefono opcional en personas si aún tiene NOT NULL
   try {

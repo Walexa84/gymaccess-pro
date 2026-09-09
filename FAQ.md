@@ -25,6 +25,14 @@
 16. [¿Cómo extraer y restaurar copias de seguridad (.db) a una USB y qué pasa con el sistema y los checadores?](#faq-16)
 17. [¿Por qué falló la carga de planes en el Triaje y cómo las directivas maestras prohíben parches de API y alias en backend?](#faq-17)
 18. [¿Cómo funcionan las Cortesías de 1 día, el candado vitalicio de 3 por ID y la Bitácora agnóstica de eventos?](#faq-18)
+19. [¿Por qué la Bitácora no mostraba la fecha, cómo exportar a Excel/PDF sin romper caracteres y por qué abrir el sitio al 80%?](#faq-19)
+20. [¿Por qué se requerían múltiples clics para marcar zonas y deben poder alterarse las puertas de un socio manualmente?](#faq-20)
+21. [¿Por qué una persona nueva no se sincronizaba a todos los checadores y cuál es la diferencia entre sincronizar niveles vs. alinear checadores?](#faq-21)
+22. [¿Por qué al dar clic en Cortesía la pantalla arrojaba error y sacaba de la aplicación?](#faq-22)
+23. [¿Por qué decía 'Vigente' si ya había vencido hace 2 días y cómo se resolvió la dependencia de la nube?](#faq-23)
+24. [¿Cómo optimizar y simplificar la gestión y horarios de acceso para Empleados (Staff)?](#faq-24)
+25. [¿Cómo funciona la búsqueda facetada en dos niveles, métricas en vivo y debounce en el Directorio de Personas?](#faq-25)
+26. [¿Por qué decía 'de 5 registradas' si había 4 personas y cómo se unificó la coherencia de ámbito?](#faq-26)
 
 ---
 
@@ -420,3 +428,132 @@
      - Los empleados o personas sin membresía conservan la edición manual libre.
   3. **Solución del Clic Único:**  
      - Se reemplazó el contenedor por un `<label>` accesible que elimina la duplicidad de eventos y conmuta al primer toque limpio.
+
+---
+
+<a name="faq-21"></a>
+### 21. ¿Por qué una persona nueva no se sincronizaba a todos los checadores y cuál es la diferencia entre sincronizar niveles vs. alinear checadores?
+
+- **Pregunta Original de Mario:**  
+  *"Agregué una persona nueva, pero no se agregó a un checador, ¿puedes revisar? Usé la opción de sincronizar pero no veo que lo sincronice... ¿Hay una opción para mandar a los checadores (todos) los usuarios que le corresponden con los niveles de acceso que le corresponden? ¿Es buena idea mezclarlo con el triaje?"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo se resolvió el error de aprovisionamiento multi-tenant `CCF038009: Group is not existed` en Hik-Connect Teams al registrar personas entre organizaciones independientes (reemplazando `groupId` específico por la raíz universal `'1'`), y cómo se diseñó la orquestación asíncrona de reconciliación masiva (`AccessQueueService`) diferenciando el catálogo físico de puertas (`NivelesAccesoTab`) del enrolamiento de identidades y credenciales en el Centro de Triaje?*
+- **Explicación Didáctica (El Catálogo de Tiendas vs. el Camión de Mercancía):**  
+  - *La confusión de botones:* Imagina una cadena de tiendas. Un botón dice *"Actualizar Lista de Sucursales"* (revisa qué tiendas existen y qué puertas tienen). El otro botón dice *"Repartir Credenciales a los Empleados en todas las Sucursales"*. Si presionabas el primer botón esperando que un socio nuevo apareciera en el checador, era como actualizar la lista telefónica de las sucursales esperando que un cliente llegara físicamente a una de ellas.
+  - *El error de organización (`CCF038009`):* Cuando registrabas a alguien en la Cuenta 1 (Araucarias), el sistema intentaba mandarlo a la Cuenta 2 (Américas) usando el número de oficina de Araucarias. La nube de Hikvision decía: *"Esa oficina no existe en Américas"* y rechazaba a la persona. Al corregirlo a la oficina raíz universal (`'1'`), ambas sucursales lo aceptan sin problemas.
+  - *¿Por qué unificarlo en el Centro de Triaje?:* El Triaje es el "hospital general" donde el sistema compara qué hay en la computadora contra qué hay en los checadores. Tener ahí el botón maestro **`🚀 Alinear Todos a Checadores`** permite con un solo clic enviar a la cola a todos los socios y empleados activos con sus fotos, vigencias y torniquetes correctos sin congelar la pantalla.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Desambiguación de Botones:** En *Configuración ➔ Niveles & Zonas*, el botón se renombró a **`🔄 Actualizar Zonas / Puertas`**, con una nota clara de que ese botón solo refresca la infraestructura física, mientras que para las personas se utiliza el Triaje.
+  2. **Corrección de `groupId` Universal en `teamsPerson.service.ts`:** Se fijó `groupId: '1'` para todas las organizaciones de Hik-Connect Teams, garantizando creación limpia en cualquier cuenta secundaria.
+  3. **Botón Maestro en Triaje:** En *Personas ➔ 🏥 Triaje & Conciliación*, se agregó el botón **`🚀 Alinear Todos a Checadores`**, respaldado por el endpoint `POST /api/iam/personas/sync-all-to-checador` y la cola `AccessQueueService` con control de flujo secuencial (350 ms entre llamadas) para evitar bloqueos por tasa de peticiones.
+
+---
+
+<a name="faq-22"></a>
+### 22. ¿Por qué al dar clic en Cortesía la pantalla arrojaba error y sacaba de la aplicación?
+
+- **Pregunta Original de Mario:**  
+  *"Al agregar una persona en cortesía al dar click me da error y me saca de la página"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo impacta una referencia no declarada en tiempo de ejecución (`ReferenceError: Cannot find name 'CheckCircle2'`) dentro de un bloque condicional de React SPA sin Error Boundary, y cuál es la estrategia de validación estática para prevenir colapsos del árbol de componentes en producción?*
+- **Explicación Didáctica (El Tablero de Control y el Interruptor Falso):**  
+  Imagina que instalas un panel con tres botones: *Socio*, *Empleado* y *Cortesía*. Los dos primeros tienen sus circuitos completos y encienden sus respectivas luces. Pero en el botón de *Cortesía*, el fabricante mandó llamar un indicador visual que nunca se conectó a la placa madre. Mientras no toques ese botón, el auto funciona normal; pero en el segundo exacto en que presionas *Cortesía*, el sistema busca el componente faltante, se produce un fallo crítico de memoria y la computadora central apaga el sistema entero para protegerse. En la pantalla del navegador, esto se manifestó como un error en rojo de React que desmonto toda la página y la dejó en blanco ("te saca de la pantalla").
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **Corrección de la Importación:** En `NuevaPersonaModal.tsx`, se sustituyó la importación residual `Check` por `CheckCircle2` de `lucide-react`, vinculando el icono real que requería el banner de 1 día de cortesía.
+  2. **Encadenamiento Opcional de Seguridad:** En `Personas.tsx`, se protegió la llamada posterior al alta (`persona?.tipo === 'SOCIO'`) para evitar cualquier redirección inesperada a la pantalla de Cobro si el objeto de respuesta no correspondía a un socio comercial.
+  3. **Auditoría de Tipos:** Se corrió `npx tsc --noEmit` para asegurar que ningún otro componente condicional contenga nombres huérfanos o no importados.
+
+---
+
+<a name="faq-23"></a>
+### 23. ¿Por qué decía 'Vigente' si ya había vencido hace 2 días y cómo se resolvió la dependencia de la nube?
+
+- **Pregunta Original de Mario:**  
+  *"¿Por qué me dice vigente, si ya venció hace 2 días?"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo mitigar el acoplamiento bloqueante entre procesos de auditoría local en segundo plano (`SyncWorker.auditVigencias`) y APIs de hardware externo en la nube, implementando un modelo Offline-First / SSOT (Single Source of Truth) donde la base de datos SQLite transaccione primero la revocación temporal independientemente del estado de red?*
+- **Explicación Didáctica (La Factura de Luz y el Cartero):**  
+  - *El error de diseño original:* Imagina que la compañía de luz (tu base de datos local) decide cortar el servicio a un cliente porque no pagó hace dos días. Pero la secretaria dice: *"No voy a poner el contrato como CORTADO en mi sistema hasta que el cartero me llame por teléfono confirmando que ya entregó la notificación física en la casa del cliente"*. Si el cartero se queda sin señal de teléfono o se poncha su llanta (lo que ocurrió con la llamada a la nube de Hikvision), la oficina central se queda diciendo *"Contrato Vigente"* eternamente, a pesar de que en el calendario ya pasaron dos días completos.
+  - *¿Podía entrar el cliente al gimnasio?:* **No.** En GymAccess Pro V2.5, al enrolar a un cliente se le graba en el chip de memoria del checador la fecha límite exacta (`2026-09-07T23:59:59`). El reloj interno de la terminal bloqueó el paso automáticamente desde la medianoche del 7 sin necesitar internet. La inconsistencia era puramente de datos en la pantalla de la computadora.
+  - *La solución sin parches:*  
+    1. **Soberanía Local (Fail-Safe):** La base de datos de la computadora es la dueña absoluta de la verdad. A medianoche, el demonio transacciona `activa = 0, estatus = 'VENCIDA'` en SQLite **primero**. Si la nube o el internet fallan después, tu sistema y tu pantalla ya tienen el dato correcto y no se quedan congelados.
+    2. **Historial de Último Plan Activo:** Se reemplazó el `LEFT JOIN ... WHERE activa = 1` por una subconsulta que extrae la membresía más reciente de la persona. Así, aunque ya haya vencido, la tarjeta sigue mostrando con orgullo qué plan tenía (*"Cortesía"*) y cuándo venció (*"Vencido hace 2 días"*), con la insignia en rojo `Membresía: Vencida`.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **En `syncWorker.ts`:** Se separó la transacción de SQLite (`UPDATE gym_membresias SET activa = 0, estatus = 'VENCIDA'`) de la llamada de red a `HardwareManager.setPersonAccess()`, evitando que una excepción remota revierta la base de datos local.
+  2. **En `iam.service.ts`:** Se implementó una subconsulta `ORDER BY activa DESC, fecha_fin DESC, id DESC LIMIT 1` con cómputo estricto `CASE WHEN m.fecha_fin < DATE('now', 'localtime') THEN 'VENCIDA'`, garantizando que la API devuelva siempre la última membresía y evalúe la expiración del calendario.
+  3. **En `Personas.tsx`:** Se unificó `estaVigente` con el cálculo de calendario para que el distintivo superior y el renglón inferior coincidan de forma 100% armónica.
+
+---
+
+<a name="faq-24"></a>
+### 24. ¿Cómo optimizar y simplificar la gestión y horarios de acceso para Empleados (Staff)?
+
+- **Pregunta Original de Mario:**  
+  *"¿Tenemos la mejor gestión para empleados? ¿Cómo hay que crear un nivel de acceso para ellos? No sé si las instrucciones que hay son suficientes en el sistema, o hay forma de mejorar y simplificar esta opción."*
+- **Formulación Técnica Formal:**  
+  *¿Cómo optimizar el aprovisionamiento de credenciales de personal operativo (Staff/Colaboradores) en una arquitectura híbrida Edge/Cloud sin exponer APIs de creación de horarios no soportadas por la OpenAPI V2.11 de Hik-Connect Teams, automatizando la selección de puertas mediante flags de rol (`es_staff`), asignación por defecto a 1 año renovable y guías interactivas integradas en UI?*
+- **Explicación Didáctica (El Carnet Maestro de Empleado vs. El Boleto del Gimnasio):**  
+  - *El boleto del cliente:* Un socio compra un paquete mensual o una visita; su fecha de salida depende de cuánto dinero pagó y qué días compró.
+  - *El carnet del empleado:* Un entrenador, recepcionista o personal de limpieza no compra un paquete; trabaja allí. No debe pasar por la caja de cobro ni tener vencimiento de 30 días, sino un pase anual renovable. Además, sus puertas y horarios (por ejemplo, poder entrar a las 5:00 AM para abrir el gimnasio antes que los socios o entrar al almacén) se definen en el sistema de control de accesos de Hikvision.
+  - *El reto operativo previo:* Anteriormente, al registrar a un empleado, el recepcionista tenía que recordar de memoria cuáles casillas marcar entre todos los torniquetes y puertas, con el riesgo de olvidar la puerta de servicio o asignarle puertas de socios. Además, no estaba claro cómo enlazar los horarios creados en Hik-Connect Teams con GymAccess Pro.
+  - *La solución inteligente implementada:*  
+    1. **Etiquetado Inteligente de Puertas de Staff:** En *Configuración ➔ Niveles & Zonas*, cada nivel cuenta con el botón `⭐ Nivel de Staff (Auto-seleccionar)`. Con un solo clic se define qué puertas corresponden a los empleados.
+    2. **Preselección 100% Automática:** Al abrir *+ Nueva Persona* y hacer clic en la pestaña *Personal*, el modal desmarca inmediatamente las puertas de clientes y marca en automático todos los niveles de Staff configurados, eliminando errores humanos.
+    3. **Vigencia Anual y Cero Cobro:** Asigna automáticamente vigencia de 1 año renovable y crea el registro directo sin requerir membresía comercial ni cobrarle en caja.
+    4. **Guía Integrada Paso a Paso:** Tanto en *Niveles & Zonas* como en el modal de alta, un botón con tutorial interactivo explica con enlaces directos cómo crear o ajustar los horarios de personal en el portal web de Hik-Connect Teams y descargarlos a GymAccess Pro con el botón `🔄 Sincronizar Niveles`.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **En Base de Datos (`schema.sql` y `database.ts`):** Se agregó la columna `es_staff INTEGER DEFAULT 0` en la tabla `niveles_acceso` con migración idempotente.
+  2. **En Rutas Backend (`iam.routes.ts`):** Se expuso el endpoint `PATCH /api/iam/niveles-acceso/:id/toggle-staff` para alternar el distintivo de Staff en vivo.
+  3. **En Interfaz de Niveles (`NivelesAccesoTab.tsx`):** Se incorporó el botón `⭐ Nivel de Staff` en cada tarjeta de nivel, la insignia visual violeta y la guía interactiva desplegable `❓ Guía de Horarios Staff`.
+  4. **En Alta de Personas (`NuevaPersonaModal.tsx`):** Se implementó `handleSelectTipo` para autoseleccionar todas las puertas marcadas con `es_staff === 1` al elegir *Personal*, además de la tarjeta informativa de vigencia y el botón `⭐ Reaplicar Puertas de Staff`.
+
+---
+
+<a name="faq-25"></a>
+### 25. ¿Cómo funciona la búsqueda facetada en dos niveles, métricas en vivo y debounce en el Directorio de Personas?
+
+- **Pregunta Original de Mario:**  
+  *"Revisa los filtros actuales, ¿cómo se puede mejorar la experiencia?"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo implementar un patrón de Búsqueda Facetada (Faceted Search) reactivo en un directorio IAM local, complementando la segmentación por rol con filtros ortogonales de ciclo de vida de membresía (`VIGENTE`, `POR_VENCER`, `VENCIDA`) y estado biométrico (`SIN_FOTO`), agregando agregaciones SQL en tiempo real para insignias numéricas y debounce en el input de texto?*
+- **Explicación Didáctica (El Archivero Ciego vs. El Tablero con Semáforos Inteligentes):**  
+  - *El problema del archivero ciego:* Antes, los filtros solo clasificaban a las personas por rol (*Socio*, *Empleado*, *Cortesía*). Si recepción quería saber a quiénes cobrarles hoy o a quiénes les faltaba tomarles la foto para el checador facial, tenía que revisar 300 tarjetas una por una con lupa. Además, las pestañas no mostraban números, obligando a adivinar cuántos socios activos o vencidos había.
+  - *El tablero inteligente en 2 niveles:*
+    1. **Nivel 1 (Control Maestro):** Un buscador amplio con botón para borrar de un clic (`✕`), selector `Activos` vs. `Dados de Baja` con contadores exactos, y un botón `Limpiar` para restaurar la vista al instante. Cada letra tecleada espera 250 ms (debounce) antes de consultar a la base de datos, eliminando parpadeos y saturación.
+    2. **Nivel 2 (Filtros Facetados con Métricas):**
+       - **Audiencia:** Muestra cuántas personas hay en cada rol (`Todos (5)`, `Socios (3)`, `Staff (1)`, `Cortesías (3)`).
+       - **Semáforo de Vigencia / Cobranza:** Tres botones táctiles para cobranza inmediata: `🟢 Vigentes (3)`, `🟡 Por Vencer (1)` (socios que expiran en los próximos 3 días para mandarles recordatorio preventivo) y `🔴 Vencidos (2)` (socios con membresía expirada para cobrarles en cuanto crucen la puerta).
+       - **Biometría Facial:** El botón `📷 Sin Rostro (2)` filtra en un solo clic a todos los clientes que ya están en el sistema pero aún no tienen fotografía cargada, permitiendo al operador regularizarlos de inmediato al recibirlos en el mostrador.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **En Base de Datos y Backend (`iam.service.ts` y `iam.routes.ts`):**  
+     - Se añadió el método `IamService.getStats()` que computa en una sola consulta agregada de alto rendimiento los totales de activos, inactivos, socios, staff, cortesías, vigentes, por vencer, vencidos y sin foto.
+     - Se expuso el endpoint `GET /api/iam/personas/stats`.
+     - Se amplió `GET /api/iam/personas` para procesar los parámetros `vigencia` (`VIGENTE`, `POR_VENCER`, `VENCIDA`) y `biometria` (`SIN_FOTO`, `CON_FOTO`).
+  2. **En Interfaz Frontend (`Personas.tsx`):**  
+     - Implementación del hook de debounce (250 ms) con botón de limpieza `✕`.
+     - Barra facetada de 2 niveles compacta y reactiva con insignias numéricas en vivo.
+     - Estado vacío elegante con botón *"Restablecer todos los filtros"*.
+     - Cumplimiento estricto de la directiva §13 (491 líneas totales, por debajo del tope de 500 líneas).
+
+---
+
+<a name="faq-26"></a>
+### 26. ¿Por qué decía 'de 5 registradas' si había 4 personas y cómo se unificó la coherencia de ámbito?
+
+- **Pregunta Original de Mario:**  
+  *"Si todos son 4 y socios son 3 y me dice de 5 registradas, no es clara la información"*
+- **Formulación Técnica Formal:**  
+  *¿Cómo mitigar la Inconsistencia de Ámbito (Scope Mismatch) en dashboards reactivos, asegurando que denominadores de filtrado y leyendas textuales deriven de forma determinista del subconjunto de ciclo de vida activo (`totalUniverso = activos`) en lugar del universo histórico global persistido en la base de datos?*
+- **Explicación Didáctica (Los Clientes en la Tienda vs. El Cliente que se fue a Casa):**  
+  - *El choque de números:* Imagina que en el gimnasio tienes a **4 personas adentro** (3 socios y 1 colaborador del staff), y tienes a **1 persona dada de baja** en el archivo muerto. Al ver la lista de activos, el botón de arriba dice claramente `Todos: 4`. Si filtras por *Socios*, ves a los 3 socios. Pero si el sistema te dice: *"Mostrando 3 socios (de 5 personas registradas)"*, te quedas pensando: *"¿De dónde salió ese 5 si arriba dice que Todos son 4?"*.
+  - *La causa:* El texto estaba tomando el total general de la base de datos (`stats.total = 5`, que incluye al inactivo), en lugar de respetar el ámbito que el usuario está viendo en su pantalla (`stats.activos = 4`).
+  - *La regla de oro de la industria:* Si estás en la pestaña de **Activos**, tu universo absoluto es **4**. El número 5 jamás debe aparecer allí. Si estás en la pestaña de **Dados de Baja**, tu universo es **1**.
+- **Solución Aplicada en GymAccess Pro:**  
+  1. **En `Personas.tsx`:** Se implementó la constante de ámbito coherente:  
+     `const totalUniverso = filtroEstado === 'ACTIVOS' ? (stats.activos || 0) : (stats.inactivos || 0);`
+  2. **Textos Contextuales Unificados:**  
+     - Al filtrar por Socios: `👤 Mostrando 3 socio(s) (de 4 personas activas)`
+     - Al filtrar por Vencidos: `🔴 Mostrando 2 persona(s) con membresía vencida (de 4 activas)`
+     - Al ver la vista general: `📋 Mostrando las 4 personas activas en la sucursal`
+     - Botón de restauración: `✕ Ver todos (4)`
+  3. **Cuadratura en Botones:** El botón de Todos muestra exactamente `Todos 4`, sumando `Socios 3` + `Staff 1` = 4 sin ninguna contradicción.

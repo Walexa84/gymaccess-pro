@@ -1,44 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, RefreshCw, AlertTriangle, CheckCircle2, UserPlus, Trash2, 
-  Users, ShieldAlert, Sparkles, Building2 
-} from 'lucide-react';
+import { X, RefreshCw, AlertTriangle, CheckCircle2, UserPlus, Trash2, Users, ShieldAlert, Sparkles, Building2, Cpu } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 interface TeamsPerson {
-  personId: string;
-  personCode: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  gender: number;
-  headPicUrl: string | null;
-  is_registered_in_gym: boolean;
-  local_person_id: number | null;
-  local_tipo: string | null;
-  membresia_estatus: string | null;
-  plan_nombre: string | null;
-  vigencia_fin: string | null;
-  telefono: string;
+  personId: string; personCode: string; firstName: string; lastName: string; fullName: string;
+  gender: number; headPicUrl: string | null; is_registered_in_gym: boolean; local_person_id: number | null;
+  local_tipo: string | null; membresia_estatus: string | null; plan_nombre: string | null;
+  vigencia_fin: string | null; telefono: string;
 }
 
 interface TeamsSyncModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onPersonImported: () => void;
+  isOpen: boolean; onClose: () => void; onPersonImported: () => void;
 }
 
 export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose, onPersonImported }) => {
   const [cuentas, setCuentas] = useState<any[]>([]);
   const [selectedCuentaId, setSelectedCuentaId] = useState<number>(1);
   const [loading, setLoading] = useState(false);
-  const [teamsData, setTeamsData] = useState<{
-    totalTeams: number;
-    unregisteredCount: number;
-    registeredCount: number;
-    persons: TeamsPerson[];
-  } | null>(null);
-
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [teamsData, setTeamsData] = useState<{ totalTeams: number; unregisteredCount: number; registeredCount: number; persons: TeamsPerson[] } | null>(null);
   const [planes, setPlanes] = useState<any[]>([]);
   const [actionMsg, setActionMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [purgingAll, setPurgingAll] = useState(false);
@@ -67,14 +47,9 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
       if (res.ok) {
         const data = await res.json();
         setCuentas(data);
-        if (data.length > 0) {
-          setSelectedCuentaId(data[0].id);
-          escanearPersonas(data[0].id);
-        }
+        if (data.length > 0) { setSelectedCuentaId(data[0].id); escanearPersonas(data[0].id); }
       }
-    } catch (e) {
-      console.error('Error cargando cuentas:', e);
-    }
+    } catch (e) { console.error('Error cargando cuentas:', e); }
   };
 
   const cargarPlanes = async () => {
@@ -86,9 +61,7 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
         setPlanes(lista);
         if (lista.length > 0) setImportPlanId(lista[0].id);
       }
-    } catch (e) {
-      console.error('Error cargando planes:', e);
-    }
+    } catch (e) { console.error('Error cargando planes:', e); }
   };
 
   const escanearPersonas = async (cuentaId = selectedCuentaId) => {
@@ -110,11 +83,8 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
     setImportingPerson(p);
     setImportPhone(p.telefono || '');
     setImportTipo('SOCIO');
-    if (planes.length === 0) {
-      cargarPlanes();
-    } else {
-      setImportPlanId(planes[0].id);
-    }
+    if (planes.length === 0) cargarPlanes();
+    else setImportPlanId(planes[0].id);
   };
 
   const handleConfirmImport = async (e: React.FormEvent) => {
@@ -198,6 +168,28 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
     }
   };
 
+  const handleSyncAllToChecadores = async () => {
+    try {
+      setSyncingAll(true);
+      setActionMsg(null);
+      const res = await fetch('/api/iam/personas/sync-all-to-checador', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fallo al encolar');
+      setActionMsg({ 
+        ok: true, 
+        text: `🚀 ${data.count} personas activas enviadas a la cola de hardware (procesamiento seguro cada 350ms).` 
+      });
+      setTimeout(() => {
+        escanearPersonas(selectedCuentaId);
+        onPersonImported();
+      }, 3500);
+    } catch (err: any) {
+      setActionMsg({ ok: false, text: err.message });
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -212,13 +204,13 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
             </div>
             <div>
               <h3 className="font-bold text-lg text-main-theme flex items-center gap-2">
-                Buzón de Checador & Triaje Teams
+                🏥 Triaje & Conciliación de Checadores
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-theme border border-theme text-muted-theme font-mono">
                   En Vivo
                 </span>
               </h3>
               <p className="text-xs text-muted-theme">
-                Audita personas registradas en el hardware, impórtalas a tu gimnasio o purga usuarios externos.
+                Audita personas en hardware, alinea socios locales a todas las sucursales o purga cupos.
               </p>
             </div>
           </div>
@@ -254,7 +246,19 @@ export const TeamsSyncModal: React.FC<TeamsSyncModalProps> = ({ isOpen, onClose,
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-theme border border-theme hover:text-cyan-400 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
-              <span>{loading ? 'Escaneando...' : 'Escanear Checador'}</span>
+              <span>{loading ? 'Escaneando...' : 'Escanear'}</span>
+            </button>
+
+            <button
+              onClick={handleSyncAllToChecadores}
+              disabled={syncingAll || loading}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                isCyber ? 'bg-volt text-black hover:bg-volt/90' : 'bg-sport-orange text-white hover:opacity-90'
+              } disabled:opacity-50`}
+              title="Alinear y enviar a todos los socios y staff activos hacia todos los checadores que les corresponden"
+            >
+              <Cpu className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
+              <span>{syncingAll ? 'Encolando...' : '🚀 Alinear Todos a Checadores'}</span>
             </button>
           </div>
 

@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, AlertCircle, ShieldCheck, RefreshCw, Cpu, Phone, Mail, CheckCircle2,
-  Edit3, Save, Lock
-} from 'lucide-react';
+import { X, AlertCircle, ShieldCheck, RefreshCw, Cpu, Phone, Mail, CheckCircle2, Edit3, Save, Lock, Camera } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { FaceCropperModal } from './FaceCropperModal';
 import { WebcamModal } from '../WebcamModal';
@@ -32,8 +29,6 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({ isOpen, on
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [webcamOpen, setWebcamOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ tipo: 'exito' | 'error'; mensaje: string } | null>(null);
-
-  // Edición de datos generales
   const [editandoDatos, setEditandoDatos] = useState(false);
   const [guardandoDatos, setGuardandoDatos] = useState(false);
   const [formDatos, setFormDatos] = useState({ codigo: '', nombre: '', apellidos: '', telefono: '', email: '' });
@@ -302,9 +297,15 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({ isOpen, on
                     </span>
                     <div className="flex items-center gap-2">
                       {estaSincronizado ? (
-                        <span className="flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[11px]">
-                          <Cpu className="w-3 h-3" /> En Checador
-                        </span>
+                        persona?.foto_url ? (
+                          <span className="flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[11px]">
+                            <Cpu className="w-3 h-3" /> En Checador
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-[11px]" title="Acceso sincronizado pero falta foto para reconocimiento facial">
+                            <Camera className="w-3 h-3" /> Falta Foto Facial
+                          </span>
+                        )
                       ) : (
                         <span className="flex items-center gap-1 text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-[11px]">
                           <AlertCircle className="w-3 h-3" /> Pendiente Teams
@@ -339,13 +340,13 @@ export const FichaPersonaModal: React.FC<FichaPersonaModalProps> = ({ isOpen, on
                             value={formDatos.codigo}
                             disabled={estaSincronizado}
                             readOnly={estaSincronizado}
-                            onChange={(e) => setFormDatos({ ...formDatos, codigo: e.target.value })}
+                            onChange={(e) => setFormDatos({ ...formDatos, codigo: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() })}
                             className={`w-full px-2 py-1.5 rounded-lg border text-xs font-mono font-bold focus:outline-none transition ${
                               estaSincronizado
                                 ? 'bg-theme-subtle border-theme text-muted-theme cursor-not-allowed opacity-75 select-none'
                                 : 'bg-card-theme border-theme text-main-theme focus:border-accent-theme'
                             }`}
-                            placeholder="Ej. 1001"
+                            placeholder="Ej. PER1001"
                             title={estaSincronizado ? 'Inmutable: El código no se puede modificar porque ya está grabado en el checador facial y en Hik-Connect Teams' : undefined}
                           />
                         </div>

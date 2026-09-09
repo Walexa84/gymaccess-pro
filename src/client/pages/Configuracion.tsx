@@ -31,9 +31,9 @@ export const Configuracion: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6 transition-colors duration-300">
       {/* Encabezado del Módulo de Control de Acceso */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-accent-badge-theme text-accent-theme border border-highlight-theme">
+          <div className="p-2.5 rounded-xl bg-accent-badge-theme text-accent-theme border border-highlight-theme shrink-0">
             <Sliders className="w-7 h-7" />
           </div>
           <div>
@@ -47,7 +47,7 @@ export const Configuracion: React.FC = () => {
         </div>
 
         {/* Selector de Subpestañas Táctil con Scroll Horizontal */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-theme-subtle border border-theme overflow-x-auto no-scrollbar max-w-full">
+        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-theme-subtle border border-theme overflow-x-auto no-scrollbar shrink-0 shadow-sm">
           <button
             onClick={() => setSubTab('sucursales')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
